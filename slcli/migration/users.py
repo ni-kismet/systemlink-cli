@@ -3,19 +3,18 @@
 import logging
 from collections import Counter
 from dataclasses import dataclass
-from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import click
 import questionary
 import requests
+from prefect import task
+from prefect.cache_policies import INPUTS, TASK_SOURCE
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
 from slcli.migration.schema import VersionedModel
-from slcli.migration.state import MigrationRun
 from slcli.migration.workspaces import MappedWorkspace, WorkspaceMapping
 
 PAGE_SIZE = 100
@@ -108,65 +107,27 @@ class _UserMigrationTask:
 
 
 class _ReviewedUser(BaseModel):
+    """A candidate source user; a missing email means the user is not migrated."""
+
     user: MigrationUser
     workspaces: Tuple[MappedWorkspace, ...]
-    selected: bool
     email: Optional[str]
-    destination_user_id: Optional[str]
-    completed_workspaces: Set[str]
-    completed: bool
 
 
-class _UserMigrationState(VersionedModel):
-    migration_id: str
-    mapping: WorkspaceMapping
+class _UserReview(VersionedModel):
+    """Reviewed source users, persisted as the Prefect result of the review task."""
+
     users: List[_ReviewedUser]
-    skip_workspace_permissions: bool
 
     @model_validator(mode="after")
-    def _validate_review(self) -> "_UserMigrationState":
+    def _validate_review(self) -> "_UserReview":
         ids = [user.user.id for user in self.users]
         if len(set(ids)) != len(ids):
             raise ValueError("User review contains duplicate source IDs")
         for user in self.users:
-            if not user.selected and (user.email is not None or not user.completed):
-                raise ValueError("Unselected users cannot be migrated")
-            if user.email is None and not user.completed:
-                raise ValueError("Users without a resolved email cannot be migrated")
             if user.email is not None and (not user.email or user.email != user.email.strip()):
                 raise ValueError("User review contains an invalid resolved email")
         return self
-
-
-def _save_user_state(run: MigrationRun, state: _UserMigrationState) -> None:
-    try:
-        with NamedTemporaryFile(dir=run.directory, delete=False) as temporary:
-            path = Path(temporary.name)
-            try:
-                temporary.write(state.model_dump_json().encode("utf-8"))
-                temporary.close()
-                path.replace(run.user_state_path)
-            finally:
-                temporary.close()
-                path.unlink(missing_ok=True)
-    except OSError as exc:
-        raise click.ClickException(f"Cannot save user migration state: {exc}") from exc
-
-
-def _load_user_state(run: MigrationRun, mapping: WorkspaceMapping) -> _UserMigrationState:
-    try:
-        state = _UserMigrationState.model_validate_json(run.user_state_path.read_bytes())
-    except FileNotFoundError:
-        raise
-    except (OSError, ValueError) as exc:
-        raise click.ClickException(
-            f"Cannot load user migration state for migration '{run.migration_id}': {exc}"
-        ) from exc
-    if state.migration_id != run.migration_id or state.mapping != mapping:
-        raise click.ClickException(
-            "The saved user migration state belongs to a different migration or workspace mapping."
-        )
-    return state
 
 
 class UserMigrationClient:
@@ -471,58 +432,57 @@ def _plan_user_migrations(
     return tasks, warnings
 
 
-def migrate_users(
-    source_profile: str,
-    destination_profile: str,
-    mapping: WorkspaceMapping,
-    run: MigrationRun,
-) -> int:
-    """Review eligible source users and migrate their records and workspace access."""
-    try:
-        state = _load_user_state(run, mapping)
-    except FileNotFoundError:
-        candidates: List[UserCandidate] = []
-        if mapping.workspaces:
-            source_client = UserMigrationClient(resolve_migration_connection(source_profile))
-            candidates = discover_user_candidates(
-                source_client.query_users(),
-                source_client.query_policies(),
-                mapping,
-                source_client.query_auth_mappings(),
-            )
-        selected = _select_users(candidates) if candidates else []
-        emails = _resolve_emails(selected)
-        selected_ids = {candidate.user.id for candidate in selected}
-        state = _UserMigrationState(
-            migration_id=run.migration_id,
-            mapping=mapping,
-            skip_workspace_permissions=False,
-            users=[
-                _ReviewedUser(
-                    user=candidate.user,
-                    workspaces=candidate.workspaces,
-                    selected=candidate.user.id in selected_ids,
-                    email=emails.get(candidate.user.id),
-                    destination_user_id=None,
-                    completed_workspaces=set(),
-                    completed=candidate.user.id not in emails,
-                )
-                for candidate in candidates
-            ],
-        )
-        _save_user_state(run, state)
+@task(
+    name="review-users",
+    persist_result=True,
+    result_serializer="json",
+    cache_result_in_memory=False,
+    cache_policy=TASK_SOURCE + INPUTS,
+)
+def review_users_task(source_profile: str, mapping: WorkspaceMapping) -> _UserReview:
+    """Ask which eligible source users to migrate and for their destination emails.
 
-    pending = [user for user in state.users if not user.completed]
-    if not pending:
+    The reviewed result is persisted, so a resumed run reuses it instead of prompting again.
+    """
+    candidates: List[UserCandidate] = []
+    if mapping.workspaces:
+        source_client = UserMigrationClient(resolve_migration_connection(source_profile))
+        candidates = discover_user_candidates(
+            source_client.query_users(),
+            source_client.query_policies(),
+            mapping,
+            source_client.query_auth_mappings(),
+        )
+    selected = _select_users(candidates) if candidates else []
+    emails = _resolve_emails(selected)
+    return _UserReview(
+        users=[
+            _ReviewedUser(
+                user=candidate.user,
+                workspaces=candidate.workspaces,
+                email=emails.get(candidate.user.id),
+            )
+            for candidate in candidates
+        ]
+    )
+
+
+def apply_user_migrations(destination_profile: str, review: _UserReview) -> int:
+    """Create or reuse destination users and grant their workspace access.
+
+    The destination is queried on every call, so re-running with the same review reuses
+    users and grants that already exist and writes only what is missing.
+    """
+    selected = [
+        UserCandidate(user=user.user, workspaces=user.workspaces)
+        for user in review.users
+        if user.email is not None
+    ]
+    emails = {user.user.id: user.email for user in review.users if user.email is not None}
+    if not selected:
         click.echo("Successfully migrated 0 users.")
         return 0
 
-    selected = [
-        UserCandidate(user=user.user, workspaces=user.workspaces)
-        for user in state.users
-        if user.selected
-    ]
-    emails = {user.user.id: user.email for user in state.users if user.email is not None}
     destination_client = UserMigrationClient(resolve_migration_connection(destination_profile))
     existing_users = destination_client.query_users(include_inactive=True)
     existing_mappings = destination_client.query_auth_mappings()
@@ -535,53 +495,18 @@ def migrate_users(
     for warning in warnings:
         click.echo(f"Warning: {warning}", err=True)
 
-    pending_by_id = {user.user.id: user for user in pending}
-    tasks = [task for task in tasks if task.source_user.id in pending_by_id]
-    for task in tasks:
-        saved_id = pending_by_id[task.source_user.id].destination_user_id
-        if saved_id and task.destination_user_id and saved_id != task.destination_user_id:
-            raise click.ClickException(
-                f"The destination user for '{task.email}' differs from the saved user migration state."
-            )
-    existing_access = {
-        (auth_mapping.selector.value, auth_mapping.workspace)
-        for auth_mapping in existing_mappings
-        if auth_mapping.type == "user-id" and auth_mapping.selector.key == "user-id"
-    }
-    tasks = [
-        _UserMigrationTask(
-            source_user=task.source_user,
-            email=task.email,
-            destination_user_id=(
-                pending_by_id[task.source_user.id].destination_user_id or task.destination_user_id
-            ),
-            workspaces=tuple(
-                workspace
-                for workspace in task.workspaces
-                if workspace.destination_id
-                not in pending_by_id[task.source_user.id].completed_workspaces
-                and (
-                    pending_by_id[task.source_user.id].destination_user_id,
-                    workspace.destination_id,
-                )
-                not in existing_access
-            ),
-        )
-        for task in tasks
-    ]
-    needs_mappings = any(task.workspaces for task in tasks)
     if not tasks:
         click.echo("Successfully migrated 0 users.")
         return 0
+    needs_mappings = any(user_task.workspaces for user_task in tasks)
     if destination_client.readonly and any(
-        task.destination_user_id is None
-        or (task.workspaces and not state.skip_workspace_permissions)
-        for task in tasks
+        user_task.destination_user_id is None or user_task.workspaces for user_task in tasks
     ):
         destination_client._ensure_writable("migrate users")
 
     template_id: Optional[str] = None
-    if needs_mappings and not state.skip_workspace_permissions:
+    skip_workspace_permissions = False
+    if needs_mappings:
         template_id = destination_client.collaborator_template_id()
         if template_id is None:
             click.echo(
@@ -593,8 +518,7 @@ def migrate_users(
                 "Continue creating users without workspace permissions?", default=False
             ).ask():
                 raise click.Abort()
-            state.skip_workspace_permissions = True
-            _save_user_state(run, state)
+            skip_workspace_permissions = True
         else:
             click.echo(
                 "Warning: migrated users receive the Collaborator role for the listed "
@@ -604,24 +528,17 @@ def migrate_users(
 
     created_users = 0
     created_mappings = 0
-    for task in tasks:
-        reviewed = pending_by_id[task.source_user.id]
-        user_id = task.destination_user_id
+    for user_task in tasks:
+        user_id = user_task.destination_user_id
         if user_id is None:
-            user_id = destination_client.create_user(task.source_user, task.email)
+            user_id = destination_client.create_user(user_task.source_user, user_task.email)
             created_users += 1
-        reviewed.destination_user_id = user_id
-        _save_user_state(run, state)
-        if template_id:
-            for workspace in task.workspaces:
+        if template_id and not skip_workspace_permissions:
+            for workspace in user_task.workspaces:
                 destination_client.create_auth_mapping(
                     user_id, workspace.destination_id, template_id
                 )
                 created_mappings += 1
-                reviewed.completed_workspaces.add(workspace.destination_id)
-                _save_user_state(run, state)
-        reviewed.completed = True
-        _save_user_state(run, state)
 
     _logger.info(
         "Users migrated: users=%d created=%d auth_mappings=%d",

@@ -2,17 +2,19 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterator, List, Optional, Tuple
 from unittest.mock import MagicMock
 
 import click
 import pytest
 import requests
+from prefect.settings import temporary_settings
+from prefect.testing.utilities import prefect_test_harness
 
 from slcli.migration.connection import MigrationConnection
 from slcli.migration.files.models import FileDiscovery, FileTransfer
 from slcli.migration.flows.migrate import migrate_flow as migration_flow
-from slcli.migration.state import MigrationDiscovery, MigrationRun, create_migration_run
+from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.models import (
     TestMonitorDiscovery,
     TestMonitorMigration,
@@ -23,8 +25,11 @@ from slcli.migration.users import (
     _AuthMapping,
     _AuthMappingSelector,
     _Policy,
+    _ReviewedUser,
+    _UserReview,
+    apply_user_migrations,
     discover_user_candidates,
-    migrate_users,
+    review_users_task,
 )
 from slcli.migration.workspaces import (
     DiscoveredWorkspaces,
@@ -224,10 +229,18 @@ class _FakeClient:
 
     def create_user(self, source_user: MigrationUser, email: str) -> str:
         self.created_users.append((source_user, email))
+        self.users.append(MigrationUser(id="created-user", type="user", email=email))
         return "created-user"
 
     def create_auth_mapping(self, user_id: str, workspace_id: str, template_id: str) -> None:
         self.created_mappings.append((user_id, workspace_id, template_id))
+        self.mappings.append(
+            _AuthMapping(
+                type="user-id",
+                selector=_AuthMappingSelector(key="user-id", value=user_id),
+                workspace=workspace_id,
+            )
+        )
 
 
 def _source_user() -> MigrationUser:
@@ -260,14 +273,12 @@ def _policies() -> List[_Policy]:
     ]
 
 
-def _run_migration(
+def _patch_clients(
     monkeypatch: pytest.MonkeyPatch,
     source: _FakeClient,
     destination: _FakeClient,
     selected_ids: List[str],
-    run: MigrationRun,
-    mapping: Optional[WorkspaceMapping] = None,
-) -> int:
+) -> None:
     source_connection = MigrationConnection("source", "https://source", {})
     destination_connection = MigrationConnection("destination", "https://destination", {})
     monkeypatch.setattr(
@@ -284,20 +295,41 @@ def _run_migration(
         lambda *_args, **_kwargs: SimpleNamespace(ask=lambda: selected_ids),
     )
 
-    return migrate_users(
-        "source", "destination", mapping if mapping is not None else _mapping(), run
-    )
+
+def _review(
+    monkeypatch: pytest.MonkeyPatch,
+    source: _FakeClient,
+    destination: _FakeClient,
+    selected_ids: List[str],
+    mapping: Optional[WorkspaceMapping] = None,
+) -> _UserReview:
+    _patch_clients(monkeypatch, source, destination, selected_ids)
+    return review_users_task.fn("source", mapping if mapping is not None else _mapping())
+
+
+def _run_migration(
+    monkeypatch: pytest.MonkeyPatch,
+    source: _FakeClient,
+    destination: _FakeClient,
+    selected_ids: List[str],
+    mapping: Optional[WorkspaceMapping] = None,
+) -> int:
+    review = _review(monkeypatch, source, destination, selected_ids, mapping)
+    return apply_user_migrations("destination", review)
 
 
 @pytest.fixture
-def run(tmp_path: Path) -> MigrationRun:
-    """Create isolated durable state for one migration."""
-    return create_migration_run("source", "destination", None, tmp_path)
+def prefect_results(tmp_path: Path) -> Iterator[None]:
+    """Run Prefect with a per-test result store so cached reviews never leak between tests."""
+    with (
+        prefect_test_harness(),
+        temporary_settings(updates={"results.local_storage_path": str(tmp_path / "results")}),
+    ):
+        yield
 
 
 def test_existing_destination_user_is_reused_and_only_missing_mappings_added(
     monkeypatch: pytest.MonkeyPatch,
-    run: MigrationRun,
 ) -> None:
     """Case-insensitive email matches preserve the user and add only missing access."""
     source = _FakeClient([_source_user()], _policies())
@@ -319,7 +351,7 @@ def test_existing_destination_user_is_reused_and_only_missing_mappings_added(
         ],
     )
 
-    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], run)
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert migrated == 1
     assert source.user_query_options == [False]
@@ -332,13 +364,12 @@ def test_existing_destination_user_is_reused_and_only_missing_mappings_added(
 
 def test_new_destination_user_gets_source_metadata_and_all_workspace_mappings(
     monkeypatch: pytest.MonkeyPatch,
-    run: MigrationRun,
 ) -> None:
     """New users receive source metadata and an auth-mapping for every workspace."""
     source = _FakeClient([_source_user()], _policies())
     destination = _FakeClient([])
 
-    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], run)
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert migrated == 1
     assert destination.created_users == [(_source_user(), "Alex@example.com")]
@@ -348,9 +379,7 @@ def test_new_destination_user_gets_source_metadata_and_all_workspace_mappings(
     ]
 
 
-def test_pending_destination_user_is_reused(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
+def test_pending_destination_user_is_reused(monkeypatch: pytest.MonkeyPatch) -> None:
     """A pending email match must not be recreated or have its record changed."""
     source = _FakeClient([_source_user()], _policies())
     destination = _FakeClient(
@@ -366,7 +395,7 @@ def test_pending_destination_user_is_reused(
         ]
     )
 
-    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], run)
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert migrated == 1
     assert destination.user_query_options == [True]
@@ -377,11 +406,115 @@ def test_pending_destination_user_is_reused(
     ]
 
 
+def test_reapplied_review_reuses_created_user_and_adds_only_missing_grants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-applying a persisted review reuses the created user and writes only missing grants."""
+    source = _FakeClient([_source_user()], _policies())
+    destination = _FakeClient([])
+    create_mapping = destination.create_auth_mapping
+
+    def fail_second_mapping(user_id: str, workspace_id: str, template_id: str) -> None:
+        if workspace_id == "destination-lab2":
+            raise requests.ConnectionError("interrupted")
+        create_mapping(user_id, workspace_id, template_id)
+
+    monkeypatch.setattr(destination, "create_auth_mapping", fail_second_mapping)
+    review = _review(monkeypatch, source, destination, ["source-user"])
+    with pytest.raises(requests.ConnectionError):
+        apply_user_migrations("destination", review)
+
+    monkeypatch.setattr(destination, "create_auth_mapping", create_mapping)
+    apply_user_migrations("destination", review)
+
+    assert destination.created_users == [(_source_user(), "Alex@example.com")]
+    assert destination.created_mappings == [
+        ("created-user", "destination-lab1", "collaborator-template"),
+        ("created-user", "destination-lab2", "collaborator-template"),
+    ]
+
+
+def test_review_is_persisted_and_reused_across_flow_runs(
+    monkeypatch: pytest.MonkeyPatch, prefect_results: None
+) -> None:
+    """The reviewed users are a Prefect result, so the same inputs never re-query or re-prompt."""
+    source = _FakeClient([_source_user()], _policies())
+    destination = _FakeClient([])
+    monkeypatch.setattr(
+        "slcli.migration.users.click.prompt", lambda *_args, **_kwargs: "supplied@example.com"
+    )
+    _patch_clients(monkeypatch, source, destination, ["source-user"])
+
+    first = review_users_task("source", _mapping())
+    monkeypatch.setattr(
+        "slcli.migration.users._select_users",
+        lambda *_args: pytest.fail("A persisted review must not be repeated"),
+    )
+    second = review_users_task("source", _mapping())
+
+    assert second == first
+    assert source.user_query_options == [False]
+
+
+def test_user_review_rejects_duplicate_source_ids() -> None:
+    """A persisted review cannot describe the same source user twice."""
+    reviewed = _ReviewedUser(user=_source_user(), workspaces=(), email="alex@example.com")
+
+    with pytest.raises(ValueError, match="duplicate source IDs"):
+        _UserReview(users=[reviewed, reviewed])
+
+
+def test_resume_reconciles_user_created_before_lost_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A user created before a lost response is found by email rather than recreated."""
+    source = _FakeClient([_source_user()], _policies())
+    destination = _FakeClient([])
+    create_user = destination.create_user
+
+    def create_then_fail(user: MigrationUser, email: str) -> str:
+        create_user(user, email)
+        raise requests.ConnectionError("response lost")
+
+    monkeypatch.setattr(destination, "create_user", create_then_fail)
+    review = _review(monkeypatch, source, destination, ["source-user"])
+    with pytest.raises(requests.ConnectionError):
+        apply_user_migrations("destination", review)
+    monkeypatch.setattr(destination, "create_user", create_user)
+    apply_user_migrations("destination", review)
+    assert len(destination.created_users) == 1
+    assert len(destination.created_mappings) == 2
+
+
+def test_resume_reconciles_grant_created_before_lost_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful grant with a lost response is found even if user lookup lags."""
+    source = _FakeClient([_source_user()], _policies())
+    destination = _FakeClient([])
+    create_mapping = destination.create_auth_mapping
+
+    def create_then_fail(user_id: str, workspace_id: str, template_id: str) -> None:
+        create_mapping(user_id, workspace_id, template_id)
+        raise requests.ConnectionError("response lost")
+
+    monkeypatch.setattr(destination, "create_auth_mapping", create_then_fail)
+    review = _review(monkeypatch, source, destination, ["source-user"])
+    with pytest.raises(requests.ConnectionError):
+        apply_user_migrations("destination", review)
+    monkeypatch.setattr(destination, "create_auth_mapping", create_mapping)
+    apply_user_migrations("destination", review)
+    assert destination.created_mappings == [
+        ("created-user", "destination-lab1", "collaborator-template"),
+        ("created-user", "destination-lab2", "collaborator-template"),
+    ]
+
+
 @pytest.mark.parametrize(
     ("existing", "already_mapped"), [(False, False), (True, False), (True, True)]
 )
 def test_shared_destination_gets_only_one_user_mapping(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun, existing: bool, already_mapped: bool
+    monkeypatch: pytest.MonkeyPatch, existing: bool, already_mapped: bool
 ) -> None:
     """Multiple source workspaces mapping to one destination produce one grant."""
     source = _FakeClient([_source_user()], _policies())
@@ -411,9 +544,7 @@ def test_shared_destination_gets_only_one_user_mapping(
             )
         }
     )
-    migrated = _run_migration(
-        monkeypatch, source, destination, ["source-user"], run, mapping=shared
-    )
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], mapping=shared)
 
     assert migrated == 1
     assert destination.created_mappings == (
@@ -425,28 +556,25 @@ def test_shared_destination_gets_only_one_user_mapping(
 
 def test_blank_missing_email_skips_user_without_destination_queries(
     monkeypatch: pytest.MonkeyPatch,
-    run: MigrationRun,
 ) -> None:
     """A missing email left blank omits that user from execution."""
     source = _FakeClient([_source_user().model_copy(update={"email": None})], _policies())
     destination = _FakeClient([])
     monkeypatch.setattr("slcli.migration.users.click.prompt", lambda *_args, **_kwargs: "")
 
-    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], run)
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert migrated == 0
     assert destination.created_users == []
     assert destination.created_mappings == []
 
 
-def test_deselected_user_is_not_migrated(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
+def test_deselected_user_is_not_migrated(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unchecking an eligible source user excludes it from destination writes."""
     source = _FakeClient([_source_user()], _policies())
     destination = _FakeClient([])
 
-    migrated = _run_migration(monkeypatch, source, destination, [], run)
+    migrated = _run_migration(monkeypatch, source, destination, [])
 
     assert migrated == 0
     assert destination.created_users == []
@@ -455,7 +583,6 @@ def test_deselected_user_is_not_migrated(
 
 def test_missing_collaborator_template_can_continue_without_mappings(
     monkeypatch: pytest.MonkeyPatch,
-    run: MigrationRun,
 ) -> None:
     """Continuing without the built-in template creates users but no permissions."""
     source = _FakeClient([_source_user()], _policies())
@@ -465,7 +592,7 @@ def test_missing_collaborator_template_can_continue_without_mappings(
         lambda *_args, **_kwargs: SimpleNamespace(ask=lambda: True),
     )
 
-    migrated = _run_migration(monkeypatch, source, destination, ["source-user"], run)
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert migrated == 1
     assert destination.created_users == [(_source_user(), "Alex@example.com")]
@@ -474,7 +601,6 @@ def test_missing_collaborator_template_can_continue_without_mappings(
 
 def test_missing_collaborator_template_can_abort_before_writes(
     monkeypatch: pytest.MonkeyPatch,
-    run: MigrationRun,
 ) -> None:
     """Declining to continue leaves the destination unchanged."""
     source = _FakeClient([_source_user()], _policies())
@@ -485,47 +611,14 @@ def test_missing_collaborator_template_can_abort_before_writes(
     )
 
     with pytest.raises(click.Abort):
-        _run_migration(monkeypatch, source, destination, ["source-user"], run)
+        _run_migration(monkeypatch, source, destination, ["source-user"])
 
     assert destination.created_users == []
     assert destination.created_mappings == []
 
 
-def test_resume_preserves_consent_to_skip_workspace_permissions(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
-    """A later retry does not add permissions the user chose not to migrate."""
-    first = _source_user()
-    second = first.model_copy(update={"id": "second", "email": "second@example.com"})
-    source = _FakeClient([first, second], _policies())
-    destination = _FakeClient([], template_id=None)
-    monkeypatch.setattr(
-        "slcli.migration.users.questionary.confirm",
-        lambda *_args, **_kwargs: SimpleNamespace(ask=lambda: True),
-    )
-    create_user = destination.create_user
-
-    def fail_second_user(user: MigrationUser, email: str) -> str:
-        if user.id == "second":
-            raise requests.ConnectionError("interrupted")
-        return create_user(user, email)
-
-    monkeypatch.setattr(destination, "create_user", fail_second_user)
-    with pytest.raises(requests.ConnectionError):
-        _run_migration(monkeypatch, source, destination, ["source-user", "second"], run)
-    monkeypatch.setattr(destination, "create_user", create_user)
-    destination.template_id = "collaborator-template"
-    _run_migration(monkeypatch, source, destination, [], run)
-    assert destination.created_users == [
-        (first, "Alex@example.com"),
-        (second, "second@example.com"),
-    ]
-    assert destination.created_mappings == []
-
-
 def test_ambiguous_destination_email_is_skipped_without_aborting_other_users(
     monkeypatch: pytest.MonkeyPatch,
-    run: MigrationRun,
 ) -> None:
     """Multiple destination matches are not overwritten or allowed to stop the migration."""
     first = _source_user()
@@ -542,153 +635,10 @@ def test_ambiguous_destination_email_is_skipped_without_aborting_other_users(
         lambda *_args, **_kwargs: SimpleNamespace(ask=lambda: ["source-user", "source-user-2"]),
     )
 
-    migrated = _run_migration(
-        monkeypatch, source, destination, ["source-user", "source-user-2"], run
-    )
+    migrated = _run_migration(monkeypatch, source, destination, ["source-user", "source-user-2"])
 
     assert migrated == 1
     assert destination.created_users == [(second, "blair@example.com")]
-
-
-def test_resume_preserves_review_and_only_retries_unfinished_grants(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
-    """A partial user write resumes without rediscovery, prompts, or repeated grants."""
-    selected = _source_user().model_copy(update={"email": None})
-    excluded = _source_user().model_copy(update={"id": "excluded", "email": "excluded@example.com"})
-    source = _FakeClient([selected, excluded], _policies())
-    destination = _FakeClient([])
-    monkeypatch.setattr(
-        "slcli.migration.users.click.prompt", lambda *_args, **_kwargs: " supplied@example.com "
-    )
-    create_mapping = destination.create_auth_mapping
-
-    def fail_second_mapping(user_id: str, workspace_id: str, template_id: str) -> None:
-        assert run.user_state_path.exists()
-        if workspace_id == "destination-lab2":
-            raise requests.ConnectionError("interrupted")
-        create_mapping(user_id, workspace_id, template_id)
-
-    monkeypatch.setattr(destination, "create_auth_mapping", fail_second_mapping)
-    with pytest.raises(requests.ConnectionError):
-        _run_migration(monkeypatch, source, destination, ["source-user"], run)
-
-    def unexpected(*_args: object, **_kwargs: object) -> None:
-        pytest.fail("Resume must not rediscover or review users")
-
-    monkeypatch.setattr(source, "query_users", unexpected)
-    monkeypatch.setattr("slcli.migration.users._select_users", unexpected)
-    monkeypatch.setattr("slcli.migration.users.click.prompt", unexpected)
-    monkeypatch.setattr(destination, "create_auth_mapping", create_mapping)
-    _run_migration(monkeypatch, source, destination, ["source-user", "excluded"], run)
-    _run_migration(monkeypatch, source, destination, ["source-user", "excluded"], run)
-
-    assert destination.created_users == [(selected, "supplied@example.com")]
-    assert destination.created_mappings == [
-        ("created-user", "destination-lab1", "collaborator-template"),
-        ("created-user", "destination-lab2", "collaborator-template"),
-    ]
-    assert len(destination.user_query_options) == 2
-
-
-@pytest.mark.parametrize("has_candidates", [False, True])
-def test_resume_after_empty_review_never_rediscovers_users(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun, has_candidates: bool
-) -> None:
-    """No candidates or an empty selection remains empty after a later failure."""
-    source = _FakeClient([_source_user()] if has_candidates else [], _policies())
-    destination = _FakeClient([])
-    _run_migration(monkeypatch, source, destination, [], run)
-    source.users.append(_source_user().model_copy(update={"id": "new-user"}))
-    _run_migration(monkeypatch, source, destination, ["source-user", "new-user"], run)
-    assert source.user_query_options == [False]
-    assert destination.created_users == []
-
-
-def test_unreadable_or_mismatched_review_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
-    """Invalid checkpoint data cannot trigger a new review or destination writes."""
-    source = _FakeClient([_source_user()], _policies())
-    destination = _FakeClient([])
-    _run_migration(monkeypatch, source, destination, [], run)
-    with pytest.raises(click.ClickException, match="different migration or workspace mapping"):
-        _run_migration(monkeypatch, source, destination, [], run, WorkspaceMapping())
-    run.user_state_path.write_text("{", encoding="utf-8")
-    with pytest.raises(click.ClickException, match="Cannot load user migration state"):
-        _run_migration(monkeypatch, source, destination, [], run)
-    assert source.user_query_options == [False]
-    assert destination.created_users == []
-
-
-def test_review_save_failure_prevents_destination_writes(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
-    """A review that cannot be persisted cannot authorize any destination writes."""
-    source = _FakeClient([_source_user()], _policies())
-    destination = _FakeClient([])
-
-    def fail_save(*_args: object, **_kwargs: object) -> None:
-        raise click.ClickException("Cannot save user migration state")
-
-    monkeypatch.setattr("slcli.migration.users._save_user_state", fail_save)
-    with pytest.raises(click.ClickException, match="Cannot save"):
-        _run_migration(monkeypatch, source, destination, ["source-user"], run)
-    assert destination.user_query_options == []
-    assert destination.created_users == []
-    assert destination.created_mappings == []
-
-
-def test_resume_reconciles_user_created_before_lost_response(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
-    """A user created before a lost response is found by email rather than recreated."""
-    source = _FakeClient([_source_user()], _policies())
-    destination = _FakeClient([])
-    create_user = destination.create_user
-
-    def create_then_fail(user: MigrationUser, email: str) -> str:
-        user_id = create_user(user, email)
-        destination.users.append(MigrationUser(id=user_id, type="user", email=email))
-        raise requests.ConnectionError("response lost")
-
-    monkeypatch.setattr(destination, "create_user", create_then_fail)
-    with pytest.raises(requests.ConnectionError):
-        _run_migration(monkeypatch, source, destination, ["source-user"], run)
-    monkeypatch.setattr(destination, "create_user", create_user)
-    _run_migration(monkeypatch, source, destination, [], run)
-    assert len(destination.created_users) == 1
-    assert len(destination.created_mappings) == 2
-
-
-def test_resume_reconciles_grant_created_before_lost_response(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun
-) -> None:
-    """A successful grant with a lost response is found even if user lookup lags."""
-    source = _FakeClient([_source_user()], _policies())
-    destination = _FakeClient([])
-    create_mapping = destination.create_auth_mapping
-
-    def create_then_fail(user_id: str, workspace_id: str, template_id: str) -> None:
-        create_mapping(user_id, workspace_id, template_id)
-        destination.mappings.append(
-            _AuthMapping(
-                type="user-id",
-                selector=_AuthMappingSelector(key="user-id", value=user_id),
-                workspace=workspace_id,
-            )
-        )
-        raise requests.ConnectionError("response lost")
-
-    monkeypatch.setattr(destination, "create_auth_mapping", create_then_fail)
-    with pytest.raises(requests.ConnectionError):
-        _run_migration(monkeypatch, source, destination, ["source-user"], run)
-    monkeypatch.setattr(destination, "create_auth_mapping", create_mapping)
-    _run_migration(monkeypatch, source, destination, [], run)
-    assert destination.created_mappings == [
-        ("created-user", "destination-lab1", "collaborator-template"),
-        ("created-user", "destination-lab2", "collaborator-template"),
-    ]
 
 
 def test_user_creation_uses_email_for_niua_id_and_preserves_metadata() -> None:
@@ -785,7 +735,10 @@ def test_flow_reviews_users_after_workspace_synchronization(
         events.append("workspaces")
         return WorkspaceMapping()
 
-    def review_users(*_args: object) -> int:
+    def review_users(*_args: object) -> str:
+        return "review"
+
+    def apply_users(*_args: object) -> int:
         events.append("users")
         return 0
 
@@ -800,14 +753,15 @@ def test_flow_reviews_users_after_workspace_synchronization(
             return file_future
 
     monkeypatch.setattr("slcli.migration.flows.migrate.synchronize_workspaces_task", synchronize)
-    monkeypatch.setattr("slcli.migration.flows.migrate.migrate_users", review_users)
+    monkeypatch.setattr("slcli.migration.flows.migrate.review_users_task", review_users)
+    monkeypatch.setattr("slcli.migration.flows.migrate.apply_user_migrations", apply_users)
     monkeypatch.setattr("slcli.migration.flows.migrate.transfer_files_task", _FileTransferTask())
     monkeypatch.setattr(
         "slcli.migration.flows.migrate.migrate_test_monitor_task",
         _TestMonitorTask(),
     )
 
-    outcome = migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery, ".")
+    outcome = migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery)
 
     assert events == ["workspaces", "users", "files", "test monitor"]
     assert outcome.test_monitor == migration
@@ -815,9 +769,9 @@ def test_flow_reviews_users_after_workspace_synchronization(
 
 @pytest.mark.parametrize("failed_resource", ["files", "test monitor"])
 def test_flow_resume_after_resource_failure_keeps_user_review(
-    monkeypatch: pytest.MonkeyPatch, run: MigrationRun, failed_resource: str
+    monkeypatch: pytest.MonkeyPatch, failed_resource: str, prefect_results: None
 ) -> None:
-    """A later resource failure does not repeat completed user migration on resume."""
+    """A later resource failure reuses the persisted user review on resume."""
     selected = _source_user().model_copy(update={"email": None})
     excluded = _source_user().model_copy(update={"id": "excluded", "email": "other@example.com"})
     source = _FakeClient([selected, excluded], _policies())
@@ -866,14 +820,13 @@ def test_flow_resume_after_resource_failure_keeps_user_review(
 
     def apply() -> None:
         migration_flow.fn(
-            run.migration_id,
+            "migration",
             "source",
             "destination",
             None,
             10,
             10,
             discovery,
-            str(run.directory),
         )
 
     with pytest.raises(RuntimeError, match="resource failure"):

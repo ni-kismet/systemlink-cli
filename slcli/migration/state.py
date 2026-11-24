@@ -91,11 +91,6 @@ class MigrationRun:
         return self.directory / "plan.json"
 
     @property
-    def user_state_path(self) -> Path:
-        """Return the path to the reviewed user migration state."""
-        return self.directory / "users.json"
-
-    @property
     def client_home(self) -> Path:
         """Return the Prefect home for the slcli process running the flow."""
         return self.directory / "prefect-client"
