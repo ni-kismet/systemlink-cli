@@ -4,6 +4,7 @@ from collections.abc import Collection, Iterable, Mapping
 from typing import Any, Dict, Optional, Tuple
 
 from slcli.migration.assets.models import AssetDiscovery, AssetLocation, DiscoveredAsset
+from slcli.migration.system_client import System
 from slcli.migration.testmonitor.discovery import DEFAULT_WORKSPACE
 
 
@@ -63,6 +64,21 @@ def _block_reason(
     if missing_file_ids:
         return f"missing destination files: {', '.join(missing_file_ids)}"
     return None
+
+
+def source_system_workspaces(
+    systems: Iterable[System], workspace_names_by_id: Mapping[str, str]
+) -> Dict[str, str]:
+    """Return source workspace names indexed by their owning system minion ID.
+
+    Systems assigned to inaccessible or deleted workspaces are omitted so their
+    assets receive the established Default workspace fallback during discovery.
+    """
+    return {
+        system.id: workspace_name
+        for system in systems
+        if (workspace_name := workspace_names_by_id.get(system.workspace)) is not None
+    }
 
 
 def discover_assets(
