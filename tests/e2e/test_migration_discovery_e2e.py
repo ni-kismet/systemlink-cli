@@ -178,10 +178,13 @@ def test_mapped_workspace(seeded: Seeded, test_prefect_server: str, tmp_path: Pa
 
 
 def test_mapped_default_excludes_products_without_results(
-    seeded: Seeded, test_prefect_server: str, tmp_path: Path
+    seeded: Seeded,
 ) -> None:
     """Products without results are only migrated when all workspaces are discovered."""
-    discovery = _discover(seeded, [DEFAULT_WORKSPACE], test_prefect_server, tmp_path)
+    workspaces = discover_workspaces(
+        WorkspaceClient(seeded.connection).query_workspaces(), [DEFAULT_WORKSPACE]
+    )
+    discovery = discover_test_monitor(TestMonitorClient(seeded.connection), workspaces)
 
     assert seeded.orphan_product not in {p.id for p in discovery.products}
 
