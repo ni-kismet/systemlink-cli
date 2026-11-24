@@ -718,7 +718,7 @@ def test_empty_mapping_discovers_no_users() -> None:
 def test_flow_reviews_users_after_workspace_synchronization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """User migration runs after workspace synchronization and before resource writes."""
+    """Workspace synchronization and review finish before any tasks are submitted."""
     events: List[str] = []
     discovery = MigrationDiscovery(
         workspaces=DiscoveredWorkspaces(),
@@ -730,17 +730,20 @@ def test_flow_reviews_users_after_workspace_synchronization(
     future.result.return_value = migration
     file_future = MagicMock()
     file_future.result.return_value = FileTransfer()
+    users_future = MagicMock()
 
     def synchronize(*_args: object) -> WorkspaceMapping:
         events.append("workspaces")
         return WorkspaceMapping()
 
     def review_users(*_args: object) -> str:
+        events.append("review")
         return "review"
 
-    def apply_users(*_args: object) -> int:
-        events.append("users")
-        return 0
+    class _UsersTask:
+        def submit(self, *_args: object) -> MagicMock:
+            events.append("users")
+            return users_future
 
     class _TestMonitorTask:
         def submit(self, *_args: object, **_kwargs: object) -> MagicMock:
@@ -754,7 +757,7 @@ def test_flow_reviews_users_after_workspace_synchronization(
 
     monkeypatch.setattr("slcli.migration.flows.migrate.synchronize_workspaces_task", synchronize)
     monkeypatch.setattr("slcli.migration.flows.migrate.review_users_task", review_users)
-    monkeypatch.setattr("slcli.migration.flows.migrate.apply_user_migrations", apply_users)
+    monkeypatch.setattr("slcli.migration.flows.migrate.migrate_users_task", _UsersTask())
     monkeypatch.setattr("slcli.migration.flows.migrate.transfer_files_task", _FileTransferTask())
     monkeypatch.setattr(
         "slcli.migration.flows.migrate.migrate_test_monitor_task",
@@ -763,8 +766,76 @@ def test_flow_reviews_users_after_workspace_synchronization(
 
     outcome = migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery)
 
-    assert events == ["workspaces", "users", "files", "test monitor"]
+    assert events == ["workspaces", "review", "users", "files", "test monitor"]
+    users_future.result.assert_called_once()
     assert outcome.test_monitor == migration
+
+
+def test_flow_does_not_start_migrations_if_review_aborts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An aborted review leaves all three migrations unstarted."""
+    monkeypatch.setattr(
+        "slcli.migration.flows.migrate.synchronize_workspaces_task", lambda *_args: _mapping()
+    )
+    review = MagicMock(side_effect=click.Abort())
+    users, files, test_monitor = MagicMock(), MagicMock(), MagicMock()
+    monkeypatch.setattr("slcli.migration.flows.migrate.review_users_task", review)
+    monkeypatch.setattr("slcli.migration.flows.migrate.migrate_users_task", users)
+    monkeypatch.setattr("slcli.migration.flows.migrate.transfer_files_task", files)
+    monkeypatch.setattr("slcli.migration.flows.migrate.migrate_test_monitor_task", test_monitor)
+    discovery = MigrationDiscovery(
+        workspaces=DiscoveredWorkspaces(),
+        files=FileDiscovery(),
+        test_monitor=TestMonitorDiscovery(),
+    )
+
+    with pytest.raises(click.Abort):
+        migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery)
+
+    users.submit.assert_not_called()
+    files.submit.assert_not_called()
+    test_monitor.submit.assert_not_called()
+
+
+def test_flow_waits_for_and_reports_all_failed_migrations(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Multiple failures are reported before the first error is propagated."""
+    monkeypatch.setattr(
+        "slcli.migration.flows.migrate.synchronize_workspaces_task", lambda *_args: _mapping()
+    )
+    monkeypatch.setattr("slcli.migration.flows.migrate.review_users_task", lambda *_args: "review")
+    users, files, test_monitor = MagicMock(), MagicMock(), MagicMock()
+    users.state.is_completed.return_value = False
+    users.state.message = "users failed"
+    users.result.side_effect = RuntimeError("users failed")
+    files.state.is_completed.return_value = False
+    files.state.message = "files failed"
+    monkeypatch.setattr(
+        "slcli.migration.flows.migrate.migrate_users_task", SimpleNamespace(submit=lambda *_: users)
+    )
+    monkeypatch.setattr(
+        "slcli.migration.flows.migrate.transfer_files_task",
+        SimpleNamespace(submit=lambda *_: files),
+    )
+    monkeypatch.setattr(
+        "slcli.migration.flows.migrate.migrate_test_monitor_task",
+        SimpleNamespace(submit=lambda *_: test_monitor),
+    )
+    discovery = MigrationDiscovery(
+        workspaces=DiscoveredWorkspaces(),
+        files=FileDiscovery(),
+        test_monitor=TestMonitorDiscovery(),
+    )
+
+    with pytest.raises(RuntimeError, match="users failed"):
+        migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery)
+
+    for future in (users, files, test_monitor):
+        future.wait.assert_called_once()
+    assert "User migration failed: users failed" in caplog.text
+    assert "File migration failed: files failed" in caplog.text
 
 
 @pytest.mark.parametrize("failed_resource", ["files", "test monitor"])
@@ -819,7 +890,7 @@ def test_flow_resume_after_resource_failure_keeps_user_review(
     )
 
     def apply() -> None:
-        migration_flow.fn(
+        migration_flow(
             "migration",
             "source",
             "destination",
@@ -840,6 +911,7 @@ def test_flow_resume_after_resource_failure_keeps_user_review(
     apply()
 
     assert source.user_query_options == [False]
+    assert destination.user_query_options == [True, True]
     assert destination.created_users == [(selected, "supplied@example.com")]
     assert destination.created_mappings == [
         ("created-user", "destination-lab1", "collaborator-template"),

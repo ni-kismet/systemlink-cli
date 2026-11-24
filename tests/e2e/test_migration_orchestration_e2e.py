@@ -39,6 +39,7 @@ from slcli.migration.testmonitor.models import (
     TestMonitorMigration,
 )
 from slcli.migration.testmonitor.writer import Record, WriteResponse
+from slcli.migration.users import migrate_users_task
 from slcli.migration.workspace_client import Workspace
 from slcli.migration.workspace_task import discover_workspaces_task, synchronize_workspaces_task
 from slcli.migration.workspaces import (
@@ -68,7 +69,7 @@ def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
     """Replace the discovery task bodies; Prefect still persists and caches them."""
     fake = FakeSource()
     monkeypatch.setattr("slcli.migration.flows.migrate.review_users_task", lambda *_args: None)
-    monkeypatch.setattr("slcli.migration.flows.migrate.apply_user_migrations", lambda *_args: 0)
+    monkeypatch.setattr(migrate_users_task, "fn", lambda *_args: 0)
 
     def workspaces_discovery(
         migration_id: str, source_profile: str, names: Optional[List[str]]
@@ -193,17 +194,17 @@ def test_cached_discovery_does_not_depend_on_server_history(
     assert len(fake_source.calls) == 1
 
 
-@pytest.mark.parametrize("failing_task", [None, "files", "test-monitor"])
-def test_file_and_test_monitor_migrations_run_concurrently(
+@pytest.mark.parametrize("failing_task", [None, "users", "files", "test-monitor"])
+def test_migrations_run_concurrently(
     fake_source: FakeSource,
     test_prefect_server: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failing_task: Optional[str],
 ) -> None:
-    """Both tasks overlap, and either failure waits for the other task to finish."""
-    barrier = Barrier(2, timeout=30)
-    completed = Event()
+    """All tasks overlap, and any failure waits for the others to finish."""
+    barrier = Barrier(3, timeout=30)
+    completed = {name: Event() for name in ("users", "files", "test-monitor")}
     mapping = WorkspaceMapping(
         workspaces=(
             MappedWorkspace(
@@ -216,24 +217,27 @@ def test_file_and_test_monitor_migrations_run_concurrently(
     )
     monkeypatch.setattr(synchronize_workspaces_task, "fn", lambda *args: mapping)
 
-    def transfer(*args: Any) -> FileTransfer:
+    def finish(name: str) -> None:
         barrier.wait()
-        if failing_task == "files":
-            raise RuntimeError("files failed")
-        if failing_task == "test-monitor":
+        if failing_task == name:
+            raise RuntimeError(f"{name} failed")
+        if failing_task is not None:
             sleep(0.5)
-        completed.set()
+        completed[name].set()
+
+    def migrate_users(*args: Any) -> int:
+        finish("users")
+        return 0
+
+    def transfer(*args: Any) -> FileTransfer:
+        finish("files")
         return FileTransfer(transferred=1)
 
     def migrate_monitor(*args: Any) -> TestMonitorMigration:
-        barrier.wait()
-        if failing_task == "test-monitor":
-            raise RuntimeError("test-monitor failed")
-        if failing_task == "files":
-            sleep(0.5)
-        completed.set()
+        finish("test-monitor")
         return TestMonitorMigration()
 
+    monkeypatch.setattr(migrate_users_task, "fn", migrate_users)
     monkeypatch.setattr(transfer_files_task, "fn", transfer)
     monkeypatch.setattr(migrate_test_monitor_task, "fn", migrate_monitor)
 
@@ -247,7 +251,7 @@ def test_file_and_test_monitor_migrations_run_concurrently(
     else:
         with pytest.raises(RuntimeError, match=f"{failing_task} failed"):
             run_migration(run, metadata, test_prefect_server)
-    assert completed.is_set()
+    assert all(event.is_set() for name, event in completed.items() if name != failing_task)
 
 
 def test_file_transfer_resume_skips_files_already_on_destination(

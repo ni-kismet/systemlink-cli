@@ -9,7 +9,7 @@ import click
 import questionary
 import requests
 from prefect import task
-from prefect.cache_policies import INPUTS, TASK_SOURCE
+from prefect.cache_policies import INPUTS, NO_CACHE, TASK_SOURCE
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from slcli.migration.api import REQUEST_TIMEOUT_SECONDS, ApiModel
@@ -548,3 +548,9 @@ def apply_user_migrations(destination_profile: str, review: _UserReview) -> int:
     )
     click.echo(f"Successfully migrated {len(tasks)} users.")
     return len(tasks)
+
+
+@task(name="migrate-users", cache_policy=NO_CACHE)
+def migrate_users_task(destination_profile: str, review: _UserReview) -> int:
+    """Apply the user review, reconciling destination users on every run."""
+    return apply_user_migrations(destination_profile, review)
