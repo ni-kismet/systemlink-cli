@@ -2,6 +2,13 @@
 
 <!-- towncrier release notes start -->
 
+## v3.4.1 (2026-11-24)
+
+### Other Changes
+
+- Migration E2E tests can record and replay HTTP tapes per side; pre-submit replays the source server. (e2e-replay)
+
+
 ## v3.4.0 (2026-11-23)
 
 ### Features
