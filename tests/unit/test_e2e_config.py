@@ -100,3 +100,45 @@ def test_sle_workspace_fallback_is_preserved(monkeypatch: Any) -> None:
     fixture_function = getattr(e2e_conftest.configured_workspace, "__wrapped__")
 
     assert fixture_function({"sle": {"workspace": "Default"}}, "sle") == "Other"
+
+
+@pytest.mark.parametrize(
+    ("base_url", "should_skip"),
+    [
+        ("https://demo.systemlink.io", True),
+        ("https://demo.systemlink.io.example.com", False),
+    ],
+)
+@pytest.mark.parametrize("multi_platform_config", [True, False])
+def test_decommissioned_demo_sls_skips_server_e2e_only(
+    monkeypatch: Any, base_url: str, should_skip: bool, multi_platform_config: bool
+) -> None:
+    """The retired demo host skips server-backed E2E tests, not migration tests."""
+    e2e_config: Dict[str, Any] = (
+        {"sls": {"base_url": base_url}} if multi_platform_config else {"base_url": base_url}
+    )
+    monkeypatch.setattr(e2e_conftest, "_load_config_file", lambda: e2e_config)
+    monkeypatch.delenv("SLCLI_E2E_BASE_URL", raising=False)
+    monkeypatch.delenv("SLCLI_E2E_API_KEY", raising=False)
+    monkeypatch.setattr(e2e_conftest, "_get_requested_platform", lambda _: "sls")
+
+    class Item:
+        def __init__(self, marker: str) -> None:
+            self.marker = marker
+            self.added_markers: List[Any] = []
+
+        def get_closest_marker(self, name: str) -> object:
+            return object() if name == self.marker else None
+
+        def add_marker(self, marker: Any) -> None:
+            self.added_markers.append(marker)
+
+    server_e2e = Item("e2e")
+    migration_e2e = Item("e2e_migration")
+
+    e2e_conftest.pytest_collection_modifyitems(None, [server_e2e, migration_e2e])
+
+    assert [marker.mark.kwargs["reason"] for marker in server_e2e.added_markers] == (
+        ["demo.systemlink.io has been decommissioned"] if should_skip else []
+    )
+    assert migration_e2e.added_markers == []

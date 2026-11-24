@@ -8,6 +8,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -600,8 +601,22 @@ def pytest_collection_modifyitems(config: Any, items: List[Any]) -> None:
 
     skip_sle = pytest.mark.skip(reason="requires SystemLink Enterprise")
     skip_sls = pytest.mark.skip(reason="requires SystemLink Server")
+    sls_config = resolved_config.get("sls")
+    sls_base_url = (
+        sls_config.get("base_url", "")
+        if isinstance(sls_config, dict)
+        else resolved_config.get("base_url", "")
+    )
+    skip_decommissioned_sls = (
+        active_platform == "sls"
+        and isinstance(sls_base_url, str)
+        and urlsplit(sls_base_url).hostname == "demo.systemlink.io"
+    )
+    skip_demo_sls = pytest.mark.skip(reason="demo.systemlink.io has been decommissioned")
 
     for item in items:
+        if skip_decommissioned_sls and item.get_closest_marker("e2e"):
+            item.add_marker(skip_demo_sls)
         if active_platform == "sle" and item.get_closest_marker("sls"):
             item.add_marker(skip_sls)
         if active_platform == "sls" and item.get_closest_marker("sle"):
