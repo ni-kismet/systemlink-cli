@@ -13,6 +13,7 @@ class E2EWorkspace(Enum):
 
     SOURCE = "e2e-slcli-migration-source"
     SOURCE_OTHER = "e2e-slcli-migration-source-other"
+    FILES_SOURCE = "e2e-slcli-migration-files-source"
     DESTINATION = "e2e-slcli-migration-destination"
     DISABLED_SOURCE = "e2e-slcli-migration-disabled-source"
     DISABLED_DESTINATION = "e2e-slcli-migration-disabled-destination"

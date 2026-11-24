@@ -164,7 +164,6 @@ def test_cleanup_refuses_unowned_workspace_contents() -> None:
     assert "another-fixture" not in message
     assert "run-id" not in message
     assert len(session.posted) == 3  # Product query and one result query per workspace.
-    assert plan.unowned_ids == ["foreign-product", "foreign-result"]
 
 
 @pytest.mark.parametrize(

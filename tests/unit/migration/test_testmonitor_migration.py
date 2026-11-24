@@ -273,7 +273,7 @@ def test_step_ids_are_derived_from_migration_and_result() -> None:
     def step_ids() -> List[str]:
         source = FakeSource({"results": [_source_result("r1")], "steps": [_step("s1", "r1")]})
         destination = FakeDestination()
-        migrate_results(source, destination, CONTEXT, 0, [_result("r1")])
+        migrate_results(source, destination, CONTEXT, 0, [_result("r1")], {})
         return [s["stepId"] for call in destination.step_calls for s in call]
 
     first = step_ids()
