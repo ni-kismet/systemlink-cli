@@ -390,8 +390,10 @@ jobs:
       SLCLI_E2E_SOURCE_PROFILE: migration-source
       SLCLI_E2E_DESTINATION_MODE: live
       SLCLI_E2E_DESTINATION_PROFILE: migration-destination
-      SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
-      SLCLI_E2E_SLE_WEB_URL: https://test.lifecyclesolutions.ni.com
+      # The lifecyclesolutions.ni.com hosts redirect here; a redirected POST cannot resend
+      # a streamed file upload, so file migration needs the final host.
+      SLCLI_E2E_SLE_BASE_URL: https://test-api.systemlink.ni.dev
+      SLCLI_E2E_SLE_WEB_URL: https://test.systemlink.ni.dev
       SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
     steps:
       - name: Check migration E2E configuration
@@ -476,88 +478,6 @@ jobs:
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         continue-on-error: true
         run: poetry run pytest tests/e2e/ -m "e2e_migration and not full_os_client_matrix" --timeout=300 --no-cov
-
-      # TEMPORARY (draft PR): find which side resets the SLS -> SLE file transfer.
-      - name: Diagnose file transfer
-        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
-        continue-on-error: true
-        shell: poetry run python {0}
-        run: |
-          import json, sys, traceback, uuid
-          sys.path.insert(0, ".")
-          from slcli.migration.connection import resolve_migration_connection
-          from slcli.migration.files.client import FileContent, FilesClient
-          from tests.e2e.migration_endpoints import get_or_create_workspace
-          from tests.e2e.owned_resource_helpers import MIGRATION_DISCOVERY_OWNER, owner_properties
-          from tests.e2e.workspaces import E2EWorkspace
-
-          src = resolve_migration_connection("migration-source")
-          dst = resolve_migration_connection("migration-destination")
-          props = owner_properties(MIGRATION_DISCOVERY_OWNER)
-          payload = b"slcli e2e file transfer diagnostic\n" * 4
-          src_ws = get_or_create_workspace(src, E2EWorkspace.FILES_SOURCE)
-          dst_ws = get_or_create_workspace(dst, E2EWorkspace.DESTINATION)
-
-          def files_url(c):
-              return f"{c.base_url}/nifile/v1/service-groups/Default"
-
-          def delete(c, file_id):
-              with c.create_session() as s:
-                  r = s.delete(f"{files_url(c)}/files/{file_id}", timeout=60)
-                  print(f"  delete {file_id}: {r.status_code}")
-
-          def attempt(label, action):
-              print(f"== {label}", flush=True)
-              try:
-                  result = action()
-                  print(f"  ok: {result}", flush=True)
-                  return result
-              except Exception:
-                  traceback.print_exc()
-                  return None
-
-          def seed():
-              with src.create_session() as s:
-                  r = s.post(f"{files_url(src)}/upload-files", params={"workspace": src_ws},
-                             data={"metadata": json.dumps(props)},
-                             files={"file": ("diag.txt", payload)}, timeout=60)
-                  print(f"  {r.status_code} {r.text[:300]}")
-                  r.raise_for_status()
-                  return r.json()["uri"].rstrip("/").rsplit("/", 1)[-1]
-
-          def raw_download(file_id):
-              with src.create_session() as s:
-                  r = s.get(f"{files_url(src)}/files/{file_id}/data",
-                            headers={"Accept-Encoding": "identity"}, stream=True, timeout=60)
-                  print(f"  {r.status_code} headers={dict(r.headers)}")
-                  return len(b"".join(r.iter_content(65536)))
-
-          def client_download(file_id):
-              with FilesClient(src).download_file(file_id) as content:
-                  return content.length, len(b"".join(content.chunks))
-
-          def upload(content):
-              file_id = uuid.uuid4().hex[:24]
-              actual = FilesClient(dst).upload_file(file_id, dst_ws, "diag.txt", props, content)
-              delete(dst, actual)
-              return actual
-
-          def streamed_copy(file_id):
-              with FilesClient(src).download_file(file_id) as content:
-                  print(f"  source length={content.length}")
-                  return upload(content)
-
-          src_id = attempt("seed source file", seed)
-          if src_id:
-              attempt("raw source download", lambda: raw_download(src_id))
-              attempt("FilesClient source download", lambda: client_download(src_id))
-          attempt("SLE upload, sized body",
-                  lambda: upload(FileContent(chunks=[payload], length=len(payload))))
-          attempt("SLE upload, chunked body",
-                  lambda: upload(FileContent(chunks=iter([payload]), length=None)))
-          if src_id:
-              attempt("streamed SLS -> SLE copy", lambda: streamed_copy(src_id))
-              delete(src, src_id)
 
       # The Windows guest occasionally bugchecks on nested KVM. sls-test recommends a fresh
       # container and one rerun when the container is no longer healthy after the tests.

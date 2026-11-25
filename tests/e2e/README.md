@@ -577,7 +577,9 @@ new server reachable by GitHub-hosted runners and update the SLS API key secret
 for that server before running CI. The `E2E (Migration)` job needs no SLS
 server: it replays the committed source tapes. The `E2E (Migration - SLS
 container)` job needs no SLS secret: it creates an API key on its own container
-with `python -m tests.e2e.sls_container`. Both run the destination live against
+with `python -m tests.e2e.sls_container`, and it uses SLE's final host,
+`https://test-api.systemlink.ni.dev`, because a redirected POST cannot resend a
+streamed file upload. Both run the destination live against
 SLE with `SLCLI_E2E_SLE_API_KEY`, using the fixed migration fixture workspaces,
 so they share a concurrency group and never overlap.
 
