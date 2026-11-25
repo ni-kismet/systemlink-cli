@@ -373,6 +373,115 @@ jobs:
           path: ${{ runner.temp }}/prefect-server.log
           if-no-files-found: ignore
 
+  e2e-migration-sls-container:
+    name: E2E (Migration - SLS container)
+    # sls-test is tested on this label: GitHub-hosted Linux with nested KVM.
+    runs-on: ubuntu-26.04
+    needs: build-test-lint
+    timeout-minutes: 75
+    # The source (SLS) is a fresh container of the published base image, seeded by the tests.
+    # The destination (SLE) is live and shared with the replay job, so runs are serialized.
+    concurrency:
+      group: e2e-migration-sle
+      cancel-in-progress: false
+    env:
+      SLS_IMAGE: ghcr.io/ni-kismet/sls-server:26.5
+      SLCLI_E2E_SOURCE_MODE: live
+      SLCLI_E2E_SOURCE_PROFILE: migration-source
+      SLCLI_E2E_DESTINATION_MODE: live
+      SLCLI_E2E_DESTINATION_PROFILE: migration-destination
+      SLCLI_E2E_SLE_BASE_URL: https://test-api.lifecyclesolutions.ni.com
+      SLCLI_E2E_SLE_WEB_URL: https://test.lifecyclesolutions.ni.com
+      SLCLI_TEST_PREFECT_API_URL: http://127.0.0.1:4200/api
+    steps:
+      - name: Check migration E2E configuration
+        id: migration-config
+        env:
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
+        run: |
+          if [ -n "$SLCLI_E2E_SLE_API_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping migration E2E job because SLCLI_E2E_SLE_API_KEY is not configured."
+          fi
+
+      - name: Checkout code
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Exports SLS_BASE_URL and SLS_CONTAINER; the web admin is admin/test.
+      - name: Start SystemLink Server
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: ni-kismet/sls-test/sls-start-server@8918418c51cbf470097c86a10f07488b20d39fe0 # v1.0.0
+        with:
+          image: ${{ env.SLS_IMAGE }}
+
+      - name: Set up Python
+        id: setup-python
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.15'
+
+      - name: Install Poetry
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        uses: ni/python-actions/setup-poetry@edaf1454897cb4cd5f6fc0757cb62dee455e57fd # v0.10.1
+        env:
+          pythonVersion: ${{ steps.setup-python.outputs.python-version }}
+
+      - name: Install dependencies
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: poetry install
+
+      - name: Start Prefect server
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        env:
+          PREFECT_HOME: ${{ runner.temp }}/prefect
+          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+          PREFECT_UI_ENABLED: "false"
+        run: |
+          nohup poetry run prefect server start --host 127.0.0.1 --port 4200 \
+            > "$RUNNER_TEMP/prefect-server.log" 2>&1 &
+
+      - name: Prepare SystemLink Server source
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: poetry run python -m tests.e2e.sls_container
+
+      - name: Configure migration destination profile
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        env:
+          SLCLI_E2E_SLE_API_KEY: ${{ secrets.SLCLI_E2E_SLE_API_KEY }}
+        # Answer the optional default-workspace prompt with an empty line.
+        run: >-
+          echo "" | poetry run slcli config add
+          --profile "$SLCLI_E2E_DESTINATION_PROFILE"
+          --url "$SLCLI_E2E_SLE_BASE_URL"
+          --web-url "$SLCLI_E2E_SLE_WEB_URL"
+          --api-key "$SLCLI_E2E_SLE_API_KEY"
+          --no-set-current
+
+      - name: Wait for Prefect server
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: |
+          for _ in $(seq 60); do
+            curl -sf "$SLCLI_TEST_PREFECT_API_URL/health" && exit 0
+            sleep 1
+          done
+          exit 1
+
+      - name: Run migration E2E tests
+        if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        run: poetry run pytest tests/e2e/ -m "e2e_migration and not full_os_client_matrix" --timeout=300 --no-cov
+
+      - name: Collect SystemLink Server logs
+        if: ${{ failure() && steps.migration-config.outputs.enabled == 'true' }}
+        uses: ni-kismet/sls-test/sls-collect-logs@8918418c51cbf470097c86a10f07488b20d39fe0 # v1.0.0
+        with:
+          artifact: migration-sls-container-logs
+          container: sls
+          path: ${{ runner.temp }}/prefect-server.log
+
   e2e-sle:
     name: E2E (SLE)
     runs-on: ubuntu-latest

@@ -1,0 +1,1 @@
+Run the migration E2E tests in CI against a fresh SystemLink Server container, alongside the replayed source.
