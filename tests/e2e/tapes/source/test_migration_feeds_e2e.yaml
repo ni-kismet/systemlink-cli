@@ -101,9 +101,9 @@ exchanges:
   body:
     multipart:
     - name: package
-      filename: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+      filename: slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk
       contentType: application/octet-stream
-      body: !file 'test_migration_feeds_e2e/ce88d264180f-ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk'
+      body: !file 'test_migration_feeds_e2e/a1ccb4f3018e-slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk'
   response:
     status: 200
     contentType: application/json; charset=utf-8
@@ -132,17 +132,17 @@ exchanges:
         operation: UPLOAD_PACKAGE
         status: SUCCEEDED
         created: '2026-11-25T20:09:42.888Z'
-        resourceId: 6aff8f83ac033d6f3a6c489e
+        resourceId: 6b074086b2729196f6b6c8a8
         resourceIds:
-        - 6aff8f83ac033d6f3a6c489e
+        - 6b074086b2729196f6b6c8a8
         returnType: PACKAGE
 - request: POST /nirepo/v1/upload-packages?shouldOverwrite=true
   body:
     multipart:
     - name: package
-      filename: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+      filename: slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk
       contentType: application/octet-stream
-      body: !file 'test_migration_feeds_e2e/b98c3f7ab850-ni-test-dummy_20.7.0.1-0+d1_all.ipk'
+      body: !file 'test_migration_feeds_e2e/6be12c7ae380-slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk'
   response:
     status: 200
     contentType: application/json; charset=utf-8
@@ -171,15 +171,15 @@ exchanges:
         operation: UPLOAD_PACKAGE
         status: SUCCEEDED
         created: '2026-11-25T20:09:43.943Z'
-        resourceId: 6aff8f83ac033d6f3a6c489f
+        resourceId: 6b074087b2729196f6b6c8ab
         resourceIds:
-        - 6aff8f83ac033d6f3a6c489f
+        - 6b074087b2729196f6b6c8ab
         returnType: PACKAGE
 - request: POST /nirepo/v1/feeds/6b074085b2729196f6b6c8a6/add-package-references
   body:
     packageReferences:
-    - 6aff8f83ac033d6f3a6c489e
-    - 6aff8f83ac033d6f3a6c489f
+    - 6b074086b2729196f6b6c8a8
+    - 6b074087b2729196f6b6c8ab
   response:
     status: 200
     contentType: application/json; charset=utf-8
@@ -197,14 +197,13 @@ exchanges:
     contentType: application/json; charset=utf-8
     body:
       packages:
-      - id: 6aff8f83ac033d6f3a6c489e
-        fileUri: /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+      - id: 6b074086b2729196f6b6c8a8
+        fileUri: /nirepo/v1/files/packages/slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk
         feedReferences:
-        - 6afe3e981301180055661766
         - 6b074085b2729196f6b6c8a6
         lastUpdated: '2026-11-25T20:09:45.043Z'
         metadata:
-          packageName: ni-test-dummy-notices
+          packageName: slcli-e2e-dummy-notices
           version: 20.7.0.1-0+d1
           architecture: all
           depends:
@@ -212,19 +211,19 @@ exchanges:
           description: |-
             NI Test Dummy Legal Notices
             Installs Test Dummy legal notices for Linux.
-          fileName: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+          fileName: slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk
           homepage: https://www.ni.com/linux/
           maintainer: National Instruments
           priority: 6
           section: Infrastructure
-          size: 908
-          source: ni-test-dummy-notices
+          size: 914
+          source: slcli-e2e-dummy-notices
           attributes:
-            Package: ni-test-dummy-notices
+            Package: slcli-e2e-dummy-notices
             Version: 20.7.0.1-0+d1
             Architecture: all
             Maintainer: National Instruments
-            Source: ni-test-dummy-notices
+            Source: slcli-e2e-dummy-notices
             Section: Infrastructure
             Priority: extra
             Depends: ni-euladepot (>= 20.5.0)
@@ -232,63 +231,61 @@ exchanges:
             Description: |-
               NI Test Dummy Legal Notices
               Installs Test Dummy legal notices for Linux.
-            Size: '908'
-            MD5sum: 9f5af3960cbc172f65fd98122d42e012
-      - id: 6aff8f83ac033d6f3a6c489f
-        fileUri: /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+            Size: '914'
+            MD5sum: 68bd2d977b778aa91553b9e0b875f0f9
+      - id: 6b074087b2729196f6b6c8ab
+        fileUri: /nirepo/v1/files/packages/slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk
         feedReferences:
-        - 6afe3e981301180055661766
         - 6b074085b2729196f6b6c8a6
         lastUpdated: '2026-11-25T20:09:45.043Z'
         metadata:
-          packageName: ni-test-dummy
+          packageName: slcli-e2e-dummy
           version: 20.7.0.1-0+d1
           architecture: all
           depends:
-          - ni-test-dummy-libs (>= 20.7.0)
-          - ni-test-dummy-devel (>= 20.7.0)
-          - ni-test-dummy-notices (>= 20.7.0)
-          - ni-test-dummy-errors (>= 20.7.0)
+          - slcli-e2e-dummy-libs (>= 20.7.0)
+          - slcli-e2e-dummy-devel (>= 20.7.0)
+          - slcli-e2e-dummy-notices (>= 20.7.0)
+          - slcli-e2e-dummy-errors (>= 20.7.0)
           description: |-
             NI Test Dummy Package Linux Support
             Linux support for test dummy headers and engine (Metapackage)
-          fileName: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+          fileName: slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk
           homepage: https://www.ni.com/linux/
           maintainer: National Instruments
           priority: 6
           section: Infrastructure
-          size: 668
-          source: ni-test-dummy
+          size: 670
+          source: slcli-e2e-dummy
           attributes:
-            Package: ni-test-dummy
+            Package: slcli-e2e-dummy
             Version: 20.7.0.1-0+d1
             Architecture: all
             Maintainer: National Instruments
-            Source: ni-test-dummy
+            Source: slcli-e2e-dummy
             Section: Infrastructure
             Priority: extra
-            Depends: ni-test-dummy-libs (>= 20.7.0), ni-test-dummy-devel (>= 20.7.0), ni-test-dummy-notices
-              (>= 20.7.0), ni-test-dummy-errors (>= 20.7.0)
+            Depends: slcli-e2e-dummy-libs (>= 20.7.0), slcli-e2e-dummy-devel (>= 20.7.0), slcli-e2e-dummy-notices
+              (>= 20.7.0), slcli-e2e-dummy-errors (>= 20.7.0)
             Homepage: https://www.ni.com/linux/
             Description: |-
               NI Test Dummy Package Linux Support
               Linux support for test dummy headers and engine (Metapackage)
-            Size: '668'
-            MD5sum: e0a6c3a70ca294725edbca3c2c485f60
+            Size: '670'
+            MD5sum: d03d3eaf6f35b4bdf3edddec92d7e33b
 - request: GET /nirepo/v1/feeds/6b074085b2729196f6b6c8a6/packages
   response:
     status: 200
     contentType: application/json; charset=utf-8
     body:
       packages:
-      - id: 6aff8f83ac033d6f3a6c489e
-        fileUri: /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+      - id: 6b074086b2729196f6b6c8a8
+        fileUri: /nirepo/v1/files/packages/slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk
         feedReferences:
-        - 6afe3e981301180055661766
         - 6b074085b2729196f6b6c8a6
         lastUpdated: '2026-11-25T20:09:45.043Z'
         metadata:
-          packageName: ni-test-dummy-notices
+          packageName: slcli-e2e-dummy-notices
           version: 20.7.0.1-0+d1
           architecture: all
           depends:
@@ -296,19 +293,19 @@ exchanges:
           description: |-
             NI Test Dummy Legal Notices
             Installs Test Dummy legal notices for Linux.
-          fileName: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+          fileName: slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk
           homepage: https://www.ni.com/linux/
           maintainer: National Instruments
           priority: 6
           section: Infrastructure
-          size: 908
-          source: ni-test-dummy-notices
+          size: 914
+          source: slcli-e2e-dummy-notices
           attributes:
-            Package: ni-test-dummy-notices
+            Package: slcli-e2e-dummy-notices
             Version: 20.7.0.1-0+d1
             Architecture: all
             Maintainer: National Instruments
-            Source: ni-test-dummy-notices
+            Source: slcli-e2e-dummy-notices
             Section: Infrastructure
             Priority: extra
             Depends: ni-euladepot (>= 20.5.0)
@@ -316,59 +313,58 @@ exchanges:
             Description: |-
               NI Test Dummy Legal Notices
               Installs Test Dummy legal notices for Linux.
-            Size: '908'
-            MD5sum: 9f5af3960cbc172f65fd98122d42e012
-      - id: 6aff8f83ac033d6f3a6c489f
-        fileUri: /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+            Size: '914'
+            MD5sum: 68bd2d977b778aa91553b9e0b875f0f9
+      - id: 6b074087b2729196f6b6c8ab
+        fileUri: /nirepo/v1/files/packages/slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk
         feedReferences:
-        - 6afe3e981301180055661766
         - 6b074085b2729196f6b6c8a6
         lastUpdated: '2026-11-25T20:09:45.043Z'
         metadata:
-          packageName: ni-test-dummy
+          packageName: slcli-e2e-dummy
           version: 20.7.0.1-0+d1
           architecture: all
           depends:
-          - ni-test-dummy-libs (>= 20.7.0)
-          - ni-test-dummy-devel (>= 20.7.0)
-          - ni-test-dummy-notices (>= 20.7.0)
-          - ni-test-dummy-errors (>= 20.7.0)
+          - slcli-e2e-dummy-libs (>= 20.7.0)
+          - slcli-e2e-dummy-devel (>= 20.7.0)
+          - slcli-e2e-dummy-notices (>= 20.7.0)
+          - slcli-e2e-dummy-errors (>= 20.7.0)
           description: |-
             NI Test Dummy Package Linux Support
             Linux support for test dummy headers and engine (Metapackage)
-          fileName: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+          fileName: slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk
           homepage: https://www.ni.com/linux/
           maintainer: National Instruments
           priority: 6
           section: Infrastructure
-          size: 668
-          source: ni-test-dummy
+          size: 670
+          source: slcli-e2e-dummy
           attributes:
-            Package: ni-test-dummy
+            Package: slcli-e2e-dummy
             Version: 20.7.0.1-0+d1
             Architecture: all
             Maintainer: National Instruments
-            Source: ni-test-dummy
+            Source: slcli-e2e-dummy
             Section: Infrastructure
             Priority: extra
-            Depends: ni-test-dummy-libs (>= 20.7.0), ni-test-dummy-devel (>= 20.7.0), ni-test-dummy-notices
-              (>= 20.7.0), ni-test-dummy-errors (>= 20.7.0)
+            Depends: slcli-e2e-dummy-libs (>= 20.7.0), slcli-e2e-dummy-devel (>= 20.7.0), slcli-e2e-dummy-notices
+              (>= 20.7.0), slcli-e2e-dummy-errors (>= 20.7.0)
             Homepage: https://www.ni.com/linux/
             Description: |-
               NI Test Dummy Package Linux Support
               Linux support for test dummy headers and engine (Metapackage)
-            Size: '668'
-            MD5sum: e0a6c3a70ca294725edbca3c2c485f60
-- request: GET /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+            Size: '670'
+            MD5sum: d03d3eaf6f35b4bdf3edddec92d7e33b
+- request: GET /nirepo/v1/files/packages/slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk
   response:
     status: 200
     contentType: application/octet-stream
-    body: !file 'test_migration_feeds_e2e/ce88d264180f-ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk'
-- request: GET /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+    body: !file 'test_migration_feeds_e2e/a1ccb4f3018e-slcli-e2e-dummy-notices_20.7.0.1-0+d1_all.ipk'
+- request: GET /nirepo/v1/files/packages/slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk
   response:
     status: 200
     contentType: application/octet-stream
-    body: !file 'test_migration_feeds_e2e/b98c3f7ab850-ni-test-dummy_20.7.0.1-0+d1_all.ipk'
+    body: !file 'test_migration_feeds_e2e/6be12c7ae380-slcli-e2e-dummy_20.7.0.1-0+d1_all.ipk'
 - request: DELETE /nirepo/v1/feeds/6b074085b2729196f6b6c8a6
   response:
     status: 200
