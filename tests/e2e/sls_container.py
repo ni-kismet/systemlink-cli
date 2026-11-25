@@ -13,6 +13,7 @@ source workspaces. The tests seed their own data; run them with
 """
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -23,7 +24,6 @@ import requests
 from click.testing import CliRunner
 
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
-from slcli.migration.files.client import FileContent, FilesClient
 from tests.e2e.migration_endpoints import get_or_create_workspace
 from tests.e2e.owned_resource_helpers import MIGRATION_DISCOVERY_OWNER, owner_properties
 from tests.e2e.workspaces import E2EWorkspace
@@ -151,22 +151,23 @@ def probe_test_monitor(connection: MigrationConnection, workspace_id: str) -> No
 
 
 def probe_files(connection: MigrationConnection, workspace_id: str) -> None:
-    """Upload and delete one owned file to prove Files accepts the workspace."""
-    payload = b"slcli e2e readiness"
-    file_id = FilesClient(connection).upload_file(
-        uuid.uuid4().hex[:24],
-        workspace_id,
-        "slcli-e2e-readiness.txt",
-        owner_properties(MIGRATION_DISCOVERY_OWNER),
-        FileContent(chunks=[payload], length=len(payload)),
-    )
+    """Upload and delete one owned file to prove Files accepts the workspace.
+
+    Uploads the way the file tests seed the source, without a caller-assigned ID.
+    """
+    files_url = f"{connection.base_url}/nifile/v1/service-groups/Default"
     with connection.create_session() as session:
-        _checked(
-            session.delete(
-                f"{connection.base_url}/nifile/v1/service-groups/Default/files/{file_id}",
+        uri = _checked(
+            session.post(
+                f"{files_url}/upload-files",
+                params={"workspace": workspace_id},
+                data={"metadata": json.dumps(owner_properties(MIGRATION_DISCOVERY_OWNER))},
+                files={"file": ("slcli-e2e-readiness.txt", b"slcli e2e readiness")},
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
-        )
+        ).json()["uri"]
+        file_id = uri.rstrip("/").rsplit("/", 1)[-1]
+        _checked(session.delete(f"{files_url}/files/{file_id}", timeout=REQUEST_TIMEOUT_SECONDS))
 
 
 def wait_until_writable(profile: str, deadline: float) -> None:

@@ -378,7 +378,7 @@ jobs:
     # sls-test is tested on this label: GitHub-hosted Linux with nested KVM.
     runs-on: ubuntu-26.04
     needs: build-test-lint
-    timeout-minutes: 75
+    timeout-minutes: 100
     # The source (SLS) is a fresh container of the published base image, seeded by the tests.
     # The destination (SLE) is live and shared with the replay job, so runs are serialized.
     concurrency:
@@ -412,6 +412,7 @@ jobs:
 
       # Exports SLS_BASE_URL and SLS_CONTAINER; the web admin is admin/test.
       - name: Start SystemLink Server
+        id: sls
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
         uses: ni-kismet/sls-test/sls-start-server@8918418c51cbf470097c86a10f07488b20d39fe0 # v1.0.0
         with:
@@ -471,8 +472,56 @@ jobs:
           exit 1
 
       - name: Run migration E2E tests
+        id: tests
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
+        continue-on-error: true
         run: poetry run pytest tests/e2e/ -m "e2e_migration and not full_os_client_matrix" --timeout=300 --no-cov
+
+      # The Windows guest occasionally bugchecks on nested KVM. sls-test recommends a fresh
+      # container and one rerun when the container is no longer healthy after the tests.
+      - name: Check for a SystemLink Server crash
+        id: crash
+        if: ${{ steps.tests.outcome == 'failure' }}
+        run: |
+          health=$(docker inspect -f '{{.State.Health.Status}}' "$SLS_CONTAINER" 2>/dev/null || echo missing)
+          if [ "$health" = healthy ]; then
+            exit 0
+          fi
+          echo "crashed=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "SystemLink Server container was $health after the tests (host CPU: $HOST_CPU)."
+            docker logs "$SLS_CONTAINER" 2>&1 | grep -i 'bugcheck' || true
+            echo "Rerunning the failed tests once on a fresh container."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          HOST_CPU: ${{ steps.sls.outputs.host-cpu }}
+
+      - name: Collect crashed SystemLink Server logs
+        if: ${{ steps.crash.outputs.crashed == 'true' }}
+        uses: ni-kismet/sls-test/sls-collect-logs@8918418c51cbf470097c86a10f07488b20d39fe0 # v1.0.0
+        with:
+          artifact: migration-sls-container-crash-logs
+          container: sls
+
+      - name: Restart SystemLink Server
+        if: ${{ steps.crash.outputs.crashed == 'true' }}
+        uses: ni-kismet/sls-test/sls-start-server@8918418c51cbf470097c86a10f07488b20d39fe0 # v1.0.0
+        with:
+          image: ${{ env.SLS_IMAGE }}
+          replace: 'true'
+          host-prep: 'false'
+
+      - name: Prepare restarted SystemLink Server source
+        if: ${{ steps.crash.outputs.crashed == 'true' }}
+        run: poetry run python -m tests.e2e.sls_container
+
+      - name: Rerun failed migration E2E tests
+        if: ${{ steps.crash.outputs.crashed == 'true' }}
+        run: poetry run pytest tests/e2e/ -m "e2e_migration and not full_os_client_matrix" --last-failed --timeout=300 --no-cov
+
+      - name: Fail on migration E2E test failures
+        if: ${{ steps.tests.outcome == 'failure' && steps.crash.outputs.crashed != 'true' }}
+        run: exit 1
 
       - name: Collect SystemLink Server logs
         if: ${{ failure() && steps.migration-config.outputs.enabled == 'true' }}
