@@ -253,6 +253,37 @@ exchanges:
     body: {products: [...], continuationToken: null}
 ```
 
+Binary bodies, such as downloaded packages (`.nipkg`, `.ipk`, `.deb`) and the
+file parts of multipart uploads, are not stored in the YAML. Any response the
+server sends as a download (`Content-Disposition: attachment`) is treated the
+same way, even if it is text, and keeps its exact bytes. Recording writes
+them to a directory named after the tape (`tapes/<side>/<module>/`), and the
+tape references them with `!file`, relative to the tape's directory. Multipart
+requests are stored as a list of parts, so a new random boundary still matches.
+File parts match on their content's SHA-256. `.gitattributes` marks these files
+`-text`, so Git never converts their line endings; tape `.yaml` files are marked `text`.
+
+```yaml
+- request: GET /nirepo/v1/files/packages/foo_1.0_x64.nipkg
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file 'test_module/3f2a9c1b7d4e-foo_1.0_x64.nipkg'
+- request: POST /nifeed/v1/feeds/<id>/packages?shouldOverwrite=false
+  body:
+    multipart:
+    - name: package
+      filename: foo_1.0_x64.nipkg
+      contentType: application/octet-stream
+      body: !file 'test_module/3f2a9c1b7d4e-foo_1.0_x64.nipkg'
+  response: ...
+```
+
+`test_migration_feeds_e2e.py` creates its own feed in the fixture-owned source
+workspace, uploads the packages in `tests/e2e/packages/`, and deletes the feed
+afterward. Recording it needs a source key that can create and delete feeds and
+upload packages.
+
 **4. Replay everything with no servers** (clear the variables from step 2 first):
 
 ```bash

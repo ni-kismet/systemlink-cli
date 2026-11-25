@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
-from tests.replay.tape import Exchange, Tape, request_key
+from tests.replay.tape import Exchange, Tape, parse_request_body, request_key
 
 # Not a real HTTP status, so a replay miss is never mistaken for server behavior.
 REPLAY_MISS_STATUS = 598
@@ -94,7 +94,7 @@ class Deck:
         """Record or replay one request."""
         if self.upstream is not None:
             return self._record(self.upstream, method, path_and_query, body, headers, base_url)
-        parsed = json.loads(body) if body else None
+        parsed = parse_request_body(path_and_query, body, _content_type(headers))
         key = request_key(method, path_and_query, parsed)
         with self._lock:
             for index, exchange in enumerate(self.tape.exchanges):
@@ -105,7 +105,7 @@ class Deck:
                         exchange.content_type,
                         exchange.response_bytes(base_url),
                     )
-            self.misses.append(f"{method} {path_and_query} {body.decode()}")
+            self.misses.append(f"{method} {path_and_query} {body.decode(errors='replace')[:500]}")
         return miss(f"No unserved exchange in {self.path} matches {method} {path_and_query}")
 
     def unserved(self) -> List[Exchange]:
@@ -147,10 +147,16 @@ class Deck:
             response.headers.get("Content-Type"),
             response.content,
             upstream.base_url,
+            _content_type(headers),
+            response.headers.get("Content-Disposition"),
         )
         with self._lock:
             self.tape.exchanges.append(exchange)
         return exchange.response_status, exchange.content_type, exchange.response_bytes(base_url)
+
+
+def _content_type(headers: Dict[str, str]) -> Optional[str]:
+    return next((v for k, v in headers.items() if k.lower() == "content-type"), None)
 
 
 def miss(message: str) -> Reply:
