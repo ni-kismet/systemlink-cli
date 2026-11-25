@@ -568,7 +568,7 @@ The GitHub Actions pipeline can run the E2E suite in these separate jobs:
 - `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
 - `E2E (Migration - full OS matrix)` runs the subset of `e2e_migration` tests requiring supported-OS coverage on Ubuntu, macOS, and Windows.
 - `E2E (Migration)` runs all other `e2e_migration` tests with a replayed source.
-- `E2E (Migration - SLS container)` runs the same tests with a live source: a fresh SystemLink Server container started by `ni-kismet/sls-test/sls-start-server` on `ubuntu-26.04`. The Windows guest occasionally crashes on nested KVM; when the container is unhealthy after the tests, the job saves its logs, starts a fresh container, and reruns the failed tests once.
+- `E2E (Migration - SLS container)` runs the same tests with a live source: a fresh SystemLink Server container started by `ni-kismet/sls-test/sls-start-server` on `ubuntu-26.04`. The Windows guest can crash on nested KVM; the job does not retry, and on failure it reports the container health, any bugcheck, and the host CPU in the job summary, and uploads the container logs.
 - `Native credentials` runs `poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q` on Ubuntu, macOS, and Windows.
 
 The CI jobs use `SLCLI_E2E_SLS_BASE_URL` for SLS and
