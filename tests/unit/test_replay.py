@@ -14,7 +14,7 @@ import requests
 from slcli.migration.annotations import STARTED_AT
 from tests.replay import server as replay_server
 from tests.replay.server import REPLAY_MISS_STATUS, Deck, FakeServer, Upstream
-from tests.replay.tape import Exchange, FileData, Tape
+from tests.replay.tape import Exchange, FileData, Tape, parse_request_body
 
 # Unit tests stub requests.get/post; sessions still reach the local servers.
 http = requests.Session()
@@ -397,6 +397,24 @@ def test_multipart_non_ascii_filename_is_stored_readably(
     )
 
     assert [r.status_code for r in responses] == [REPLAY_MISS_STATUS, 201]
+
+
+@pytest.mark.parametrize(
+    "content", [b"before--BOUNDARYafter", b"line\r\n--BOUNDARY-ish\r\n", b"ends with crlf\r\n"]
+)
+def test_multipart_file_keeps_boundary_like_bytes_and_trailing_crlf(content: bytes) -> None:
+    body = (
+        b"--BOUNDARY\r\n"
+        b'Content-Disposition: form-data; name="file"; filename="a.bin"\r\n\r\n'
+        + content
+        + b"\r\n--BOUNDARY--\r\n"
+    )
+
+    [part] = parse_request_body("/svc/upload", body, "multipart/form-data; boundary=BOUNDARY")[
+        "multipart"
+    ]
+
+    assert part["body"] == FileData("a.bin", content)
 
 
 def test_rerecording_removes_files_the_new_tape_no_longer_uses(

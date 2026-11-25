@@ -103,11 +103,13 @@ def _content_type_param(content_type: str, param: str) -> Optional[str]:
 def _parse_multipart(data: bytes, boundary: str) -> List[Dict[str, Any]]:
     """Split a multipart form into its parts, without the random boundary."""
     parts: List[Dict[str, Any]] = []
-    for section in data.split(b"--" + boundary.encode())[1:-1]:
-        head, _, content = section.removeprefix(b"\r\n").partition(b"\r\n\r\n")
+    # A delimiter is a whole line whose leading CRLF belongs to it, not to the
+    # preceding part, so boundary-like bytes inside a file are left alone.
+    delimiter = re.compile(rb"\r\n--" + re.escape(boundary.encode()) + rb"(?:--|[ \t]*\r\n)")
+    for section in delimiter.split(b"\r\n" + data)[1:-1]:
+        head, _, content = section.partition(b"\r\n\r\n")
         # Clients send non-ASCII filenames as raw UTF-8, which a bytes parser mangles.
         headers = HeaderParser().parsestr(head.decode("utf-8", errors="replace") + "\r\n\r\n")
-        content = content.removesuffix(b"\r\n")
         part: Dict[str, Any] = {"name": headers.get_param("name", header="content-disposition")}
         filename = headers.get_param("filename", header="content-disposition")
         if isinstance(filename, str):
