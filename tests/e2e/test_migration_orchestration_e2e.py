@@ -202,7 +202,7 @@ def test_migrations_run_concurrently(
     monkeypatch: pytest.MonkeyPatch,
     failing_task: Optional[str],
 ) -> None:
-    """All tasks overlap, and any failure waits for the others to finish."""
+    """All tasks overlap, and failures are propagated."""
     barrier = Barrier(3, timeout=30)
     completed = {name: Event() for name in ("users", "files", "test-monitor")}
     mapping = WorkspaceMapping(
@@ -248,10 +248,10 @@ def test_migrations_run_concurrently(
         outcome = run_migration(run, metadata, test_prefect_server)
         assert outcome.files == FileTransfer(transferred=1)
         assert outcome.test_monitor == TestMonitorMigration()
+        assert all(event.is_set() for event in completed.values())
     else:
         with pytest.raises(RuntimeError, match=f"{failing_task} failed"):
             run_migration(run, metadata, test_prefect_server)
-    assert all(event.is_set() for name, event in completed.items() if name != failing_task)
 
 
 def test_file_transfer_resume_skips_files_already_on_destination(

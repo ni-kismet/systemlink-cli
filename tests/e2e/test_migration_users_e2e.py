@@ -1,20 +1,20 @@
 """Live destination user migration coverage."""
 
+import os
 import uuid
 from typing import Dict, List, NamedTuple, Optional, Union
 
-import os
 import pytest
 import requests
 
 from slcli.migration.api import ApiModel, REQUEST_TIMEOUT_SECONDS
 from slcli.migration.connection import MigrationConnection, resolve_migration_connection
-from slcli.migration.users.client import PAGE_SIZE, AuthMapping, User, UserMigrationClient
+from slcli.migration.users.client import PAGE_SIZE, AuthMapping, Policy, User, UserMigrationClient
 from slcli.migration.users.discovery import discover_user_candidates
 from slcli.migration.users.migration import apply_user_migrations
 from slcli.migration.users.models import UserMigrationSelections, UserToMigrate
 from slcli.migration.workspace_client import WorkspaceClient
-from slcli.migration.workspaces import  (
+from slcli.migration.workspaces import (
     MappedWorkspace,
     WorkspaceMapping,
     discover_workspaces,
@@ -26,6 +26,8 @@ pytestmark = pytest.mark.e2e_migration
 
 
 class TestContext(NamedTuple):
+    """Resources and selections used by the user migration test."""
+
     connection: MigrationConnection
     client: UserMigrationClient
     email: str
@@ -53,12 +55,14 @@ def test_migrate_user_and_create_auth_mapping() -> None:
             created_user_id = _query_and_verify_user(cxt)
             _query_and_verify_auth_mapping(cxt, created_user_id)
 
-            # 
+            #
             assert apply_user_migrations(cxt.connection.profile_name, cxt.selections) == 1
             assert _query_and_verify_user(cxt) == created_user_id
             _query_and_verify_auth_mapping(cxt, created_user_id)
         finally:
-            _cleanup_user(cxt.client, session, cxt.connection.base_url, cxt.email, cxt.owner, created_user_id)
+            _cleanup_user(
+                cxt.client, session, cxt.connection.base_url, cxt.email, cxt.owner, created_user_id
+            )
 
 
 def test_user_discovery_handles_super_user() -> None:
@@ -100,7 +104,7 @@ def test_user_discovery_handles_super_user() -> None:
     assert super_user[0].workspaces == workspace_mappings.workspaces
 
 
-def _verify_super_user_exists(users, policies):
+def _verify_super_user_exists(users: List[User], policies: List[Policy]) -> str:
     super_user_policy_ids = {
         policy.id
         for policy in policies
@@ -174,13 +178,13 @@ def _query_and_verify_user(cxt: TestContext) -> str:
 
 def _query_and_verify_auth_mapping(cxt: TestContext, user_id: str) -> None:
     num_grants = sum(
-            1
-            for mapping in cxt.client.query_auth_mappings()
-            if mapping.type == "user-id"
-            and mapping.selector.key == "user-id"
-            and mapping.selector.value == user_id
-            and mapping.workspace == cxt.workspace.destination_id
-        )
+        1
+        for mapping in cxt.client.query_auth_mappings()
+        if mapping.type == "user-id"
+        and mapping.selector.key == "user-id"
+        and mapping.selector.value == user_id
+        and mapping.workspace == cxt.workspace.destination_id
+    )
     assert num_grants == 1
 
 

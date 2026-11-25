@@ -1145,7 +1145,7 @@ def test_e2e_cleanup_runs_after_migration_failure(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(users_e2e, "_cleanup_user", cleanup)
 
     with pytest.raises(requests.ConnectionError, match="response lost"):
-        users_e2e.test_migrate_user_and_workspace_grant()
+        users_e2e.test_migrate_user_and_create_auth_mapping()
 
     cleanup.assert_called_once()
 
@@ -1238,10 +1238,10 @@ def test_flow_does_not_start_migrations_if_review_aborts(
     test_monitor.submit.assert_not_called()
 
 
-def test_flow_waits_for_and_reports_all_failed_migrations(
+def test_flow_reports_first_failure_without_joining_later_migrations(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Multiple failures are reported before the first error is propagated."""
+    """A failure is reported and propagated without joining later futures."""
     monkeypatch.setattr(
         "slcli.migration.flows.migrate.synchronize_workspaces_task", lambda *_args: _mapping()
     )
@@ -1272,10 +1272,11 @@ def test_flow_waits_for_and_reports_all_failed_migrations(
     with pytest.raises(RuntimeError, match="users failed"):
         migration_flow.fn("migration", "source", "destination", None, 10, 10, discovery)
 
-    for future in (users, files, test_monitor):
-        future.wait.assert_called_once()
+    users.wait.assert_called_once()
+    files.wait.assert_not_called()
+    test_monitor.wait.assert_not_called()
     assert "User migration failed: users failed" in caplog.text
-    assert "File migration failed: files failed" in caplog.text
+    assert "File migration failed: files failed" not in caplog.text
 
 
 @pytest.mark.parametrize("failed_resource", ["files", "test monitor"])

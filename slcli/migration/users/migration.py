@@ -1,12 +1,10 @@
 """Reconcile destination users and their workspace permissions."""
 
 import logging
-from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
 import click
-import questionary
 
 from slcli.migration.connection import resolve_migration_connection
 from slcli.migration.users.client import AuthMapping, User, UserMigrationClient

@@ -69,9 +69,9 @@ def _get_auth_mapped_workspaces_by_user(
 
 
 def is_workspace_auth_mapping(
-    auth_mapping: AuthMapping,
-    workspaces_in_scope_map: Mapping[str, MappedWorkspace] | None = None
+    auth_mapping: AuthMapping, workspaces_in_scope_map: Mapping[str, MappedWorkspace] | None = None
 ) -> bool:
+    """Return whether the mapping grants a user access to an in-scope workspace."""
     return (
         auth_mapping.type == "user-id"
         and auth_mapping.selector.key == "user-id"
