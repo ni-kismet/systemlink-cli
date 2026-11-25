@@ -380,6 +380,25 @@ def test_multipart_text_fields_are_stored_inline_and_matched(
     assert [r.status_code for r in responses] == [REPLAY_MISS_STATUS, 201]
 
 
+def test_multipart_non_ascii_filename_is_stored_readably(
+    upstream: _Upstream, tmp_path: Path
+) -> None:
+    path = tmp_path / "t.yaml"
+
+    def upload(url: str, filename: str) -> requests.Response:
+        return http.post(f"{url}/svc/upload", files={"file": (filename, PACKAGE)})
+
+    tape = _record(upstream, path, lambda url: upload(url, "résumé.bin"))
+    assert "filename: résumé.bin" in tape
+
+    # Same UTF-8 length, so the old parser garbled both names identically and matched them.
+    responses = _serve(
+        Deck(path), lambda url: (upload(url, "rèsumè.bin"), upload(url, "résumé.bin"))
+    )
+
+    assert [r.status_code for r in responses] == [REPLAY_MISS_STATUS, 201]
+
+
 def test_rerecording_removes_files_the_new_tape_no_longer_uses(
     upstream: _Upstream, tmp_path: Path
 ) -> None:

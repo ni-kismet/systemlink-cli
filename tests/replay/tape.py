@@ -38,7 +38,7 @@ import re
 import shutil
 from dataclasses import dataclass, field
 from email.message import Message
-from email.parser import BytesHeaderParser
+from email.parser import HeaderParser
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qsl, unquote, urlencode
@@ -90,7 +90,8 @@ def _parse_multipart(data: bytes, boundary: str) -> List[Dict[str, Any]]:
     parts: List[Dict[str, Any]] = []
     for section in data.split(b"--" + boundary.encode())[1:-1]:
         head, _, content = section.removeprefix(b"\r\n").partition(b"\r\n\r\n")
-        headers = BytesHeaderParser().parsebytes(head + b"\r\n\r\n")
+        # Clients send non-ASCII filenames as raw UTF-8, which a bytes parser mangles.
+        headers = HeaderParser().parsestr(head.decode("utf-8", errors="replace") + "\r\n\r\n")
         content = content.removesuffix(b"\r\n")
         part: Dict[str, Any] = {"name": headers.get_param("name", header="content-disposition")}
         filename = headers.get_param("filename", header="content-disposition")
