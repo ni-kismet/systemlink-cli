@@ -1,0 +1,4 @@
+# Bodies saved beside replay tapes match on their exact bytes; never convert line endings.
+tests/e2e/tapes/*/*/** -text
+# Tapes themselves are text, even if one sits inside a module's files directory.
+tests/e2e/tapes/**/*.yaml text
