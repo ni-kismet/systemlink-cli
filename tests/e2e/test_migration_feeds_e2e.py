@@ -109,11 +109,12 @@ def seeded() -> Generator[SeededFeed, None, None]:
 
     with connection.create_session() as session:
         repo = Repo(connection.base_url, session)
-        # A failed earlier run may have left the feed behind.
+        # A failed earlier run may have left the feed behind. The server ignores the
+        # workspace filter, so check each feed's workspace before deleting it.
         for feed in repo.request("GET", "/feeds", params={"workspace": workspace_id}).get(
             "feeds", []
         ):
-            if feed.get("feedName") == FEED_NAME:
+            if feed.get("feedName") == FEED_NAME and feed.get("workspace") == workspace_id:
                 repo.run("DELETE", f"/feeds/{feed['id']}")
 
         created = repo.request(
