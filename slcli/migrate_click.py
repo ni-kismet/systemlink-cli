@@ -125,6 +125,9 @@ def register_migrate_command(cli: click.Group) -> None:
         Test results use mapped file IDs. Unresolved source IDs are omitted and
         recorded in the Migration.UnresolvedFileIds property. Results stay
         INCOMPLETE until Test Monitor migration succeeds.
+
+        Users with a '-' email are excluded from selection. Users matching multiple
+        destination accounts by email are skipped with a warning.
         """
         new_run_options = (
             source_profile,

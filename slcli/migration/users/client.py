@@ -16,7 +16,7 @@ class User(ApiModel):
     """A user record returned by User Service."""
 
     id: str
-    type: str
+    type: str = "user"
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[str] = None

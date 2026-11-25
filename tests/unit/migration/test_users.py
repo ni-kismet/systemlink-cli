@@ -85,15 +85,32 @@ def test_user_selection_aligns_columns_and_preserves_selection(
     selected = select_users(candidates)
 
     choices = checkbox.call_args.kwargs["choices"]
-    assert [choice.title for choice in choices] == [
+    assert isinstance(choices[0], questionary.Separator)
+    assert choices[0].title == f"  NAME{' ' * 2}  EMAIL{' ' * 13}  WORKSPACES"
+    assert [choice.title for choice in choices[1:]] == [
         f"Alice   a@x{' ' * 17}Lab1",
         f"\u674e{' ' * 6}long@example.test   New Lab2",
         f"{' ' * 28}Lab1, New Lab2",
         f"\U0001f469\u200d\U0001f4bb{' ' * 4}d@x{' ' * 17}Lab1",
     ]
-    assert [choice.value for choice in choices] == candidates
-    assert all(choice.checked for choice in choices)
+    assert [choice.value for choice in choices[1:]] == candidates
+    assert all(choice.checked for choice in choices[1:])
     assert selected == [candidates[0], candidates[2]]
+
+
+def test_user_selection_aligns_headers_with_short_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Column headers do not overflow columns containing short or missing values."""
+    candidate = UserToMigrate(
+        user=User(id="a", type="user", first_name="A"), workspaces=_mapping().workspaces[:1]
+    )
+    checkbox = MagicMock(return_value=SimpleNamespace(ask=lambda: [candidate]))
+    monkeypatch.setattr("slcli.migration.users.select.questionary.checkbox", checkbox)
+
+    select_users([candidate])
+
+    header, choice = checkbox.call_args.kwargs["choices"]
+    assert header.title == "  NAME  EMAIL  WORKSPACES"
+    assert choice.title == f"A{' ' * 12}Lab1"
 
 
 def test_user_selection_returns_checked_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -161,6 +178,32 @@ def test_user_query_follows_continuation_tokens(include_inactive: bool) -> None:
     assert session.post.call_args_list[0].kwargs["json"] == expected
     assert session.post.call_args_list[1].kwargs["json"]["continuationToken"] == "next"
     assert ("filter" in session.post.call_args_list[1].kwargs["json"]) is not include_inactive
+
+
+def test_user_query_discovers_untyped_users_but_not_service_accounts() -> None:
+    """Users without a type are eligible, while typed service accounts are excluded."""
+    response = MagicMock()
+    response.json.return_value = {
+        "users": [
+            {"id": "untyped", "policies": ["super-user"]},
+            {"id": "service", "type": "service", "policies": ["super-user"]},
+        ]
+    }
+    session = MagicMock()
+    session.post.return_value = response
+    client = UserMigrationClient(
+        MigrationConnection("source", "https://source", {}),
+        session=session,
+        write_session=MagicMock(),
+    )
+
+    candidates = discover_user_candidates(
+        client.query_users(),
+        [Policy(id="super-user", name="Super User", built_in=True)],
+        _mapping(),
+    )
+
+    assert [candidate.user.id for candidate in candidates] == ["untyped"]
 
 
 def test_policy_query_follows_offset_pages() -> None:
@@ -262,6 +305,48 @@ def test_user_discovery_maps_template_policies_and_super_user() -> None:
         ("mapped", ["Lab1"]),
         ("super", ["Lab1", "New Lab2"]),
     ]
+
+
+def test_user_discovery_includes_multiple_super_users() -> None:
+    """Every Super User is eligible for all selected workspaces."""
+    users = [
+        User(id="super-1", type="user", policies=["super-user"]),
+        User(id="super-2", type="user", policies=["super-user"]),
+        User(id="service", type="service", policies=["super-user"]),
+    ]
+    policies = [Policy(id="super-user", name="Super User", built_in=True)]
+    mapping = _mapping()
+
+    candidates = discover_user_candidates(users, policies, mapping)
+
+    assert {candidate.user.id: candidate.workspaces for candidate in candidates} == {
+        "super-1": mapping.workspaces,
+        "super-2": mapping.workspaces,
+    }
+    assert users_e2e._verify_super_users_exist(users, policies) == {"super-1", "super-2"}
+
+
+def test_user_discovery_excludes_special_email_but_keeps_missing_emails() -> None:
+    """A '-' email excludes special users, not users needing an email prompt."""
+    users = [
+        User(id="special-super", type="user", email="-", policies=["super-user"]),
+        User(id="special-mapped", type="user", email=" - "),
+        User(id="missing", type="user", email=None, policies=["super-user"]),
+        User(id="blank", type="user", email="  ", policies=["super-user"]),
+        User(id="normal", type="user", email="user@example.com", policies=["super-user"]),
+    ]
+    policies = [Policy(id="super-user", name="Super User", built_in=True)]
+    mappings = [
+        AuthMapping(
+            type="user-id",
+            selector=AuthMappingSelector(key="user-id", value="special-mapped"),
+            workspace="source-lab1",
+        )
+    ]
+
+    candidates = discover_user_candidates(users, policies, _mapping(), mappings)
+
+    assert {candidate.user.id for candidate in candidates} == {"missing", "blank", "normal"}
 
 
 def test_user_discovery_includes_explicit_source_auth_mappings() -> None:
@@ -455,12 +540,16 @@ def _patch_clients(
             lambda connection: clients[connection.profile_name],
         )
 
-    def checkbox(_message: str, *, choices: List[questionary.Choice]) -> SimpleNamespace:
+    def checkbox(
+        _message: str, *, choices: List[questionary.Choice], instruction: str
+    ) -> SimpleNamespace:
         return SimpleNamespace(
             ask=lambda: [
                 choice.value
                 for choice in choices
-                if isinstance(choice.value, UserToMigrate) and choice.value.user.id in selected_ids
+                if not isinstance(choice, questionary.Separator)
+                and isinstance(choice.value, UserToMigrate)
+                and choice.value.user.id in selected_ids
             ]
         )
 
@@ -851,6 +940,92 @@ def test_destination_email_match_ignores_case_and_whitespace(
         ("destination-user", "destination-lab1", "collaborator-template"),
         ("destination-user", "destination-lab2", "collaborator-template"),
     ]
+
+
+@pytest.mark.parametrize("second_email", ["Alex@example.com", " alex@EXAMPLE.com "])
+def test_ambiguous_destination_email_skips_only_matching_user(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], second_email: str
+) -> None:
+    """Ambiguous matches are skipped; uniquely matched and new users still migrate."""
+    destination = _FakeClient(
+        [
+            User(id="duplicate-1", type="user", email="Alex@example.com"),
+            User(id="duplicate-2", type="user", email=second_email),
+            User(id="unique", type="user", email="unique@example.com"),
+        ]
+    )
+    _patch_clients(monkeypatch, _FakeClient([]), destination, [])
+    selections = UserMigrationSelections(
+        users=[
+            UserToMigrate(user=_source_user(), workspaces=_mapping().workspaces),
+            UserToMigrate(
+                user=_source_user().model_copy(
+                    update={"id": "unique-source", "email": "unique@example.com"}
+                ),
+                workspaces=_mapping().workspaces[:1],
+            ),
+            UserToMigrate(
+                user=_source_user().model_copy(
+                    update={"id": "new-source", "email": "new@example.com"}
+                ),
+                workspaces=_mapping().workspaces[:1],
+            ),
+        ]
+    )
+
+    assert apply_user_migrations("destination", selections) == 2
+    assert [user.email for user in destination.created_users] == ["new@example.com"]
+    assert destination.created_mappings == [
+        ("unique", "destination-lab1", "collaborator-template"),
+        ("created-user", "destination-lab1", "collaborator-template"),
+    ]
+    assert "Skipping user 'Alex@example.com'" in capsys.readouterr().err
+
+
+def test_unrelated_duplicate_destination_emails_do_not_block_migration(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Duplicates unrelated to selected users neither block migration nor warn."""
+    destination = _FakeClient(
+        [
+            User(id="duplicate-1", type="user", email="other@example.com"),
+            User(id="duplicate-2", type="user", email=" OTHER@example.com "),
+            User(id="existing", type="user", email="alex@example.com"),
+        ]
+    )
+    _patch_clients(monkeypatch, _FakeClient([]), destination, [])
+    selections = UserMigrationSelections(
+        users=[UserToMigrate(user=_source_user(), workspaces=_mapping().workspaces[:1])]
+    )
+
+    assert apply_user_migrations("destination", selections) == 1
+    assert destination.created_users == []
+    assert destination.created_mappings == [
+        ("existing", "destination-lab1", "collaborator-template")
+    ]
+    assert capsys.readouterr().err == ""
+
+
+def test_all_ambiguous_users_are_skipped_without_writes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An entirely ambiguous selection requires no destination writes or template."""
+    destination = _FakeClient(
+        [
+            User(id="duplicate-1", type="user", email="alex@example.com"),
+            User(id="duplicate-2", type="user", email="alex@example.com"),
+        ],
+        template_id=None,
+    )
+    _patch_clients(monkeypatch, _FakeClient([]), destination, [])
+    selections = UserMigrationSelections(
+        users=[UserToMigrate(user=_source_user(), workspaces=_mapping().workspaces)]
+    )
+
+    assert apply_user_migrations("destination", selections) == 0
+    assert destination.created_users == []
+    assert destination.created_mappings == []
+    assert "Skipping user 'Alex@example.com'" in capsys.readouterr().err
 
 
 def test_deselected_user_is_not_migrated(monkeypatch: pytest.MonkeyPatch) -> None:

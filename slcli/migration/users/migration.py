@@ -35,7 +35,15 @@ def _plan_user_migrations(
     tasks: List[_UserMigrationTask] = []
     for to_migrate in users_to_migrate:
         assert to_migrate.user.email is not None
-        existing_user = existing_users_by_email.get(to_migrate.user.email.strip().casefold())
+        matches = existing_users_by_email.get(to_migrate.user.email.strip().casefold(), [])
+        if len(matches) > 1:
+            click.echo(
+                f"Warning: Skipping user '{to_migrate.user.email}': "
+                "multiple destination users have this email.",
+                err=True,
+            )
+            continue
+        existing_user = matches[0] if matches else None
         existing_authorizations = (
             existing_user_authorized_workspaces.get(existing_user.id, set())
             if existing_user is not None
@@ -52,14 +60,12 @@ def _plan_user_migrations(
     return tasks
 
 
-def _map_users_by_email(users: List[User]) -> Dict[str, User]:
-    by_email: Dict[str, User] = {}
+def _map_users_by_email(users: List[User]) -> Dict[str, List[User]]:
+    by_email: Dict[str, List[User]] = {}
     for user in users:
         assert user.email is not None
         normalized_email = user.email.strip().casefold()
-        if by_email.get(normalized_email) is not None:
-            raise ValueError(f"Multiple users with email: {user.email}")
-        by_email[normalized_email] = user
+        by_email.setdefault(normalized_email, []).append(user)
     return by_email
 
 
@@ -90,7 +96,8 @@ def apply_user_migrations(destination_profile: str, selections: UserMigrationSel
     """Create or reuse destination users and grant their workspace access.
 
     The destination is queried on every call, so re-running with the same selections reuses
-    users and grants that already exist and writes only what is missing.
+    users and grants that already exist and writes only what is missing. Users matching
+    multiple destination accounts are skipped with a warning.
     """
     if not selections.users:
         click.echo("Successfully migrated 0 users.")

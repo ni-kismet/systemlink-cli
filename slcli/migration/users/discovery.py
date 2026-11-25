@@ -13,7 +13,7 @@ def discover_user_candidates(
     mapping: WorkspaceMapping,
     auth_mappings: Iterable[AuthMapping] = (),
 ) -> List[UserToMigrate]:
-    """Find source users with workspace memberships in the migration scope."""
+    """Find in-scope source users, excluding special users with a '-' email."""
     workspaces_by_source_id = {workspace.source_id: workspace for workspace in mapping.workspaces}
     user_to_auth_mapped_workspaces = _get_auth_mapped_workspaces_by_user(
         auth_mappings, workspaces_by_source_id
@@ -30,7 +30,9 @@ def discover_user_candidates(
         iterated_policies, workspaces_by_source_id
     )
     candidates = []
-    for user in (u for u in users if u.type.casefold() == "user"):
+    for user in (
+        u for u in users if u.type.casefold() == "user" and (u.email or "").strip() != "-"
+    ):
         authorized_workspaces = set(user_to_auth_mapped_workspaces.get(user.id, ()))
         authorized_workspaces.update(
             _get_workspaces_for_user_policies(

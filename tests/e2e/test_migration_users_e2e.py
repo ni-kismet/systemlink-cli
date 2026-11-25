@@ -66,7 +66,7 @@ def test_migrate_user_and_create_auth_mapping() -> None:
 
 
 def test_user_discovery_handles_super_user() -> None:
-    """Source Super Users are discovered and assigned access to every selected workspace."""
+    """Eligible Super Users get all workspaces; special users are excluded."""
     source_profile = os.getenv("SLCLI_E2E_SOURCE_PROFILE")
     if not source_profile:
         pytest.skip("SLCLI_E2E_SOURCE_PROFILE is not configured")
@@ -87,7 +87,7 @@ def test_user_discovery_handles_super_user() -> None:
     client = UserMigrationClient(connection)
     users = client.query_users()
     policies = client.query_policies()
-    super_user_id = _verify_super_user_exists(users, policies)
+    super_user_ids = _verify_super_users_exist(users, policies)
 
     candidates = discover_user_candidates(
         users,
@@ -98,13 +98,23 @@ def test_user_discovery_handles_super_user() -> None:
 
     assert all(candidate.user.type == "user" for candidate in candidates)
     assert all(candidate.workspaces for candidate in candidates)
-    super_user = [candidate for candidate in candidates if candidate.user.id == super_user_id]
+    assert all((candidate.user.email or "").strip() != "-" for candidate in candidates)
+    eligible_super_user_ids = {
+        user.id for user in users if user.id in super_user_ids and (user.email or "").strip() != "-"
+    }
+    discovered_super_users = {
+        candidate.user.id: candidate
+        for candidate in candidates
+        if candidate.user.id in super_user_ids
+    }
+    assert set(discovered_super_users) == eligible_super_user_ids
+    assert all(
+        candidate.workspaces == workspace_mappings.workspaces
+        for candidate in discovered_super_users.values()
+    )
 
-    assert len(super_user) == 1, "Expected discovery to find exactly one super user"
-    assert super_user[0].workspaces == workspace_mappings.workspaces
 
-
-def _verify_super_user_exists(users: List[User], policies: List[Policy]) -> str:
+def _verify_super_users_exist(users: List[User], policies: List[Policy]) -> set[str]:
     super_user_policy_ids = {
         policy.id
         for policy in policies
@@ -112,14 +122,14 @@ def _verify_super_user_exists(users: List[User], policies: List[Policy]) -> str:
     }
     assert super_user_policy_ids, "Expected source SLS to have a built-in Super User policy"
 
-    super_user_ids = [
+    super_user_ids = {
         user.id
         for user in users
         if user.type.casefold() == "user" and super_user_policy_ids.intersection(user.policies)
-    ]
-    assert len(super_user_ids) == 1, "Expected source SLS to have exactly one Super User"
+    }
+    assert super_user_ids, "Expected source SLS to have at least one Super User"
 
-    return super_user_ids[0]
+    return super_user_ids
 
 
 def _setup() -> TestContext:
