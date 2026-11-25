@@ -14,7 +14,8 @@ from slcli.migration.schema import VersionedModel
 from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
-from slcli.migration.users import migrate_users_task, review_users_task
+from slcli.migration.users.migration_task import migrate_users_task
+from slcli.migration.users.select_task import select_users_task
 from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
 
@@ -79,7 +80,7 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
-    reviewed_users = review_users_task(source_profile, mapping)
+    reviewed_users = select_users_task(source_profile, mapping)
     users_future = migrate_users_task.submit(destination_profile, reviewed_users)
     files_future = transfer_files_task.submit(
         migration_id, source_profile, destination_profile, discovery.files, mapping

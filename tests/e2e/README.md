@@ -162,6 +162,8 @@ poetry run pytest tests/e2e/ -m e2e_migration --timeout=300 --no-cov
 Migration tests use named slcli profiles rather than `e2e_config.json`,
 because a migration spans a source (SLS) and a destination (SLE).
 Tests that need a source skip unless `SLCLI_E2E_SOURCE_PROFILE` is set.
+User discovery also requires the source to have an active user assigned the
+built-in Super User policy and at least one workspace.
 Tests that need a destination also skip unless `SLCLI_E2E_DESTINATION_PROFILE`
 is set. Fixtures get or create the fixed `e2e-slcli-migration-destination`
 workspace and clear fixture-owned Test Monitor resources from it before,

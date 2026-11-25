@@ -39,7 +39,7 @@ from slcli.migration.testmonitor.models import (
     TestMonitorMigration,
 )
 from slcli.migration.testmonitor.writer import Record, WriteResponse
-from slcli.migration.users import migrate_users_task
+from slcli.migration.users.migration_task import migrate_users_task
 from slcli.migration.workspace_client import Workspace
 from slcli.migration.workspace_task import discover_workspaces_task, synchronize_workspaces_task
 from slcli.migration.workspaces import (
@@ -68,7 +68,7 @@ class FakeSource:
 def fake_source(monkeypatch: pytest.MonkeyPatch) -> FakeSource:
     """Replace the discovery task bodies; Prefect still persists and caches them."""
     fake = FakeSource()
-    monkeypatch.setattr("slcli.migration.flows.migrate.review_users_task", lambda *_args: None)
+    monkeypatch.setattr("slcli.migration.flows.migrate.select_users_task", lambda *_args: None)
     monkeypatch.setattr(migrate_users_task, "fn", lambda *_args: 0)
 
     def workspaces_discovery(
