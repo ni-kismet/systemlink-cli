@@ -3,7 +3,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, Iterator, List, Optional, Tuple
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import click
 import pytest
@@ -37,6 +37,7 @@ from slcli.migration.workspaces import (
     MappedWorkspace,
     WorkspaceMapping,
 )
+from tests.e2e import test_migration_users_e2e as users_e2e
 
 
 def _mapping() -> WorkspaceMapping:
@@ -110,6 +111,18 @@ def test_user_selection_returns_checked_candidates(monkeypatch: pytest.MonkeyPat
     assert select_users(candidates) == [candidates[1]]
 
 
+def test_user_selection_cancellation_aborts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cancelling the checkbox aborts rather than selecting no users."""
+    candidate = UserToMigrate(user=_source_user(), workspaces=_mapping().workspaces)
+    monkeypatch.setattr(
+        "slcli.migration.users.select.questionary.checkbox",
+        lambda *_args, **_kwargs: SimpleNamespace(ask=lambda: None),
+    )
+
+    with pytest.raises(click.Abort):
+        select_users([candidate])
+
+
 @pytest.mark.parametrize("include_inactive", [False, True])
 def test_user_query_follows_continuation_tokens(include_inactive: bool) -> None:
     """Source and destination queries return all requested users across pages."""
@@ -173,19 +186,30 @@ def test_policy_query_follows_offset_pages() -> None:
 
 
 def test_auth_mapping_query_reads_user_id_mappings() -> None:
-    """Auth-mapping results are parsed and filtered by user-ID type."""
-    response = MagicMock()
-    response.json.return_value = {
+    """All pages of user-ID auth-mappings are requested and parsed."""
+    first = MagicMock()
+    first.json.return_value = {
         "authMappings": [
             {
                 "type": "user-id",
-                "selector": {"key": "user-id", "value": "user-1"},
+                "selector": {"key": "user-id", "value": f"user-{index}"},
                 "workspace": "workspace-1",
+            }
+            for index in range(100)
+        ]
+    }
+    second = MagicMock()
+    second.json.return_value = {
+        "authMappings": [
+            {
+                "type": "user-id",
+                "selector": {"key": "user-id", "value": "last-user"},
+                "workspace": "workspace-2",
             }
         ]
     }
     session = MagicMock()
-    session.get.return_value = response
+    session.get.side_effect = [first, second]
     client = UserMigrationClient(
         MigrationConnection("source", "https://source", {}),
         session=session,
@@ -194,12 +218,18 @@ def test_auth_mapping_query_reads_user_id_mappings() -> None:
 
     mappings = client.query_auth_mappings()
 
-    assert len(mappings) == 1
-    assert mappings[0].selector.value == "user-1"
-    assert session.get.call_args.kwargs["params"] == {
+    assert len(mappings) == 101
+    assert mappings[0].selector.value == "user-0"
+    assert mappings[-1].selector.value == "last-user"
+    assert session.get.call_args_list[0].kwargs["params"] == {
         "type": "user-id",
         "take": 100,
         "skip": 0,
+    }
+    assert session.get.call_args_list[1].kwargs["params"] == {
+        "type": "user-id",
+        "take": 100,
+        "skip": 100,
     }
 
 
@@ -249,6 +279,41 @@ def test_user_discovery_includes_explicit_source_auth_mappings() -> None:
     assert [
         (candidate.user.id, candidate.workspaces[0].destination_id) for candidate in candidates
     ] == [("direct", "destination-lab2")]
+
+
+@pytest.mark.parametrize(
+    ("mapping_type", "selector_key", "workspace"),
+    [
+        ("user-id", "user-id", "out-of-scope"),
+        ("user-id", "user-id", None),
+        ("other", "user-id", "source-lab1"),
+        ("user-id", "other", "source-lab1"),
+    ],
+)
+def test_user_discovery_ignores_out_of_scope_auth_mappings(
+    mapping_type: str, selector_key: str, workspace: Optional[str]
+) -> None:
+    """Only direct user-ID grants in selected workspaces make a user eligible."""
+    users = [User(id="ignored", type="user"), User(id="included", type="user")]
+    policies = [Policy(id="super-user", name="Super User", built_in=True)]
+    mappings = [
+        AuthMapping(
+            type=mapping_type,
+            selector=AuthMappingSelector(key=selector_key, value="ignored"),
+            workspace=workspace,
+        ),
+        AuthMapping(
+            type="user-id",
+            selector=AuthMappingSelector(key="user-id", value="included"),
+            workspace="source-lab2",
+        ),
+    ]
+
+    candidates = discover_user_candidates(users, policies, _mapping(), mappings)
+
+    assert [(candidate.user.id, candidate.workspaces) for candidate in candidates] == [
+        ("included", (_mapping().workspaces[1],))
+    ]
 
 
 @pytest.mark.parametrize("count", [0, 2])
@@ -867,6 +932,36 @@ def test_readonly_destination_rejects_user_creation() -> None:
     write_session.post.assert_not_called()
 
 
+@pytest.mark.parametrize("existing", [False, True])
+def test_readonly_migration_preflight_rejects_writes(
+    monkeypatch: pytest.MonkeyPatch, existing: bool
+) -> None:
+    """Read-only preflight rejects both user creation and missing grants before writes."""
+    connection = MigrationConnection("destination", "https://destination", {}, readonly=True)
+    write_session = MagicMock()
+    client = UserMigrationClient(connection, MagicMock(), write_session)
+    destination_users = (
+        [User(id="destination-user", type="user", email="Alex@example.com")] if existing else []
+    )
+    monkeypatch.setattr(client, "query_users", lambda **_kwargs: destination_users)
+    monkeypatch.setattr(client, "query_auth_mappings", lambda: [])
+    template = MagicMock(return_value="collaborator-template")
+    monkeypatch.setattr(client, "collaborator_template_id", template)
+    monkeypatch.setattr(
+        "slcli.migration.users.migration.resolve_migration_connection", lambda _profile: connection
+    )
+    monkeypatch.setattr("slcli.migration.users.migration.UserMigrationClient", lambda _conn: client)
+    selections = UserMigrationSelections(
+        users=[UserToMigrate(user=_source_user(), workspaces=_mapping().workspaces)]
+    )
+
+    with pytest.raises(click.ClickException, match="readonly mode"):
+        apply_user_migrations("destination", selections)
+
+    template.assert_not_called()
+    write_session.post.assert_not_called()
+
+
 def test_query_http_errors_are_not_treated_as_empty_results() -> None:
     """API failures propagate rather than being interpreted as no users."""
     response = requests.Response()
@@ -881,6 +976,178 @@ def test_query_http_errors_are_not_treated_as_empty_results() -> None:
 
     with pytest.raises(requests.HTTPError):
         client.query_users()
+
+
+def test_e2e_cleanup_deletes_owned_grants_before_user() -> None:
+    """Cleanup follows mapping pages and deletes only the fixture user's grants."""
+    client = MagicMock()
+    client.query_users.return_value = [
+        User(
+            id="fixture-user",
+            type="user",
+            email="fixture@example.invalid",
+            properties={users_e2e.OWNER_PROPERTY: "fixture-owner"},
+        )
+    ]
+    first = MagicMock()
+    first.json.return_value = {
+        "authMappings": [
+            {
+                "id": f"unrelated-{index}",
+                "type": "user-id",
+                "selector": {"key": "user-id", "value": "another-user"},
+                "workspace": "workspace",
+            }
+            for index in range(100)
+        ]
+    }
+    second = MagicMock()
+    second.json.return_value = {
+        "authMappings": [
+            {
+                "id": "fixture-grant",
+                "type": "user-id",
+                "selector": {"key": "user-id", "value": "fixture-user"},
+                "workspace": "workspace",
+            },
+            {
+                "id": "other-workspace",
+                "type": "user-id",
+                "selector": {"key": "user-id", "value": "fixture-user"},
+                "workspace": "other",
+            },
+        ]
+    }
+    session = MagicMock()
+    session.get.side_effect = [first, second]
+
+    users_e2e._cleanup_user(
+        client, session, "https://destination", "fixture@example.invalid", "fixture-owner"
+    )
+
+    assert session.get.call_args_list[1].kwargs["params"]["skip"] == 100
+    assert session.delete.call_args_list == [
+        call(
+            "https://destination/niuser/v1/auth-mappings/fixture-grant",
+            timeout=users_e2e.REQUEST_TIMEOUT_SECONDS,
+        ),
+        call(
+            "https://destination/niuser/v1/auth-mappings/other-workspace",
+            timeout=users_e2e.REQUEST_TIMEOUT_SECONDS,
+        ),
+        call(
+            "https://destination/niuser/v1/users/fixture-user",
+            timeout=users_e2e.REQUEST_TIMEOUT_SECONDS,
+        ),
+    ]
+
+
+def test_e2e_cleanup_refuses_unowned_user() -> None:
+    """An email match without the test's ownership marker is never deleted."""
+    client = MagicMock()
+    client.query_users.return_value = [
+        User(id="unowned", type="user", email="fixture@example.invalid")
+    ]
+    session = MagicMock()
+
+    with pytest.raises(RuntimeError, match="ownership marker"):
+        users_e2e._cleanup_user(
+            client,
+            session,
+            "https://destination",
+            "fixture@example.invalid",
+            "fixture-owner",
+        )
+
+    session.get.assert_not_called()
+    session.delete.assert_not_called()
+
+
+def test_e2e_cleanup_reports_missing_known_user() -> None:
+    """Cleanup does not silently succeed if a previously observed fixture user disappears."""
+    client = MagicMock()
+    client.query_users.return_value = []
+    session = MagicMock()
+
+    with pytest.raises(RuntimeError, match="Cannot find fixture user fixture-user"):
+        users_e2e._cleanup_user(
+            client,
+            session,
+            "https://destination",
+            "fixture@example.invalid",
+            "fixture-owner",
+            "fixture-user",
+        )
+
+    session.delete.assert_not_called()
+
+
+def test_e2e_cleanup_surfaces_grant_deletion_failure() -> None:
+    """A failed grant deletion leaves the user available for cleanup and reports the error."""
+    client = MagicMock()
+    client.query_users.return_value = [
+        User(
+            id="fixture-user",
+            type="user",
+            email="fixture@example.invalid",
+            properties={users_e2e.OWNER_PROPERTY: "fixture-owner"},
+        )
+    ]
+    session = MagicMock()
+    session.get.return_value.json.return_value = {
+        "authMappings": [
+            {
+                "id": "fixture-grant",
+                "type": "user-id",
+                "selector": {"key": "user-id", "value": "fixture-user"},
+                "workspace": "workspace",
+            }
+        ]
+    }
+    session.delete.return_value.raise_for_status.side_effect = requests.HTTPError("delete failed")
+
+    with pytest.raises(requests.HTTPError, match="delete failed"):
+        users_e2e._cleanup_user(
+            client,
+            session,
+            "https://destination",
+            "fixture@example.invalid",
+            "fixture-owner",
+        )
+
+    session.delete.assert_called_once_with(
+        "https://destination/niuser/v1/auth-mappings/fixture-grant",
+        timeout=users_e2e.REQUEST_TIMEOUT_SECONDS,
+    )
+
+
+def test_e2e_cleanup_runs_after_migration_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed or ambiguous migration response still triggers ownership-scoped cleanup."""
+    connection = MigrationConnection("destination", "https://destination", {})
+    monkeypatch.setattr(
+        users_e2e,
+        "resolve_endpoints",
+        lambda: SimpleNamespace(
+            destination=connection,
+            destination_workspace="Lab",
+            destination_workspace_id="workspace",
+        ),
+    )
+    client = MagicMock()
+    client.query_users.return_value = []
+    monkeypatch.setattr(users_e2e, "UserMigrationClient", lambda _connection: client)
+    monkeypatch.setattr(
+        users_e2e,
+        "apply_user_migrations",
+        MagicMock(side_effect=requests.ConnectionError("response lost")),
+    )
+    cleanup = MagicMock()
+    monkeypatch.setattr(users_e2e, "_cleanup_user", cleanup)
+
+    with pytest.raises(requests.ConnectionError, match="response lost"):
+        users_e2e.test_migrate_user_and_workspace_grant()
+
+    cleanup.assert_called_once()
 
 
 def test_empty_mapping_discovers_no_users() -> None:
