@@ -1,0 +1,402 @@
+exchanges:
+- request: GET /niuser/v1/workspaces?name=e2e-slcli-migration-source
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      totalCount: 0
+      workspaces: []
+- request: POST /niuser/v1/workspaces
+  body:
+    name: e2e-slcli-migration-source
+    enabled: true
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      default: false
+      enabled: true
+      id: 2cbf3420-7454-4158-82fd-ea9690c094e1
+      name: e2e-slcli-migration-source
+- request: GET /nirepo/v1/feeds?workspace=2cbf3420-7454-4158-82fd-ea9690c094e1
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      feeds:
+      - id: 6afe3e981301180055661766
+        feedName: Linux_
+        name: Linux_
+        directoryUri: /nirepo/v1/files/feeds/134cf11d-6441-46cf-a1f7-2e5a00ea2413
+        description: ''
+        platform: ni-linux-rt
+        workspace: 83453433-fa08-424c-bac8-fce11946476d
+        packageReferences:
+        - 6aff8f83ac033d6f3a6c489e
+        - 6aff8f83ac033d6f3a6c489f
+        packageSources: []
+        lastUpdated: '2026-11-20T00:08:38.318Z'
+        ready: true
+      - id: 6aff5498b633e0c491401716
+        feedName: My LabVIEW feed
+        name: My LabVIEW feed
+        directoryUri: /nirepo/v1/files/feeds/8b482c93-b731-4e1d-886c-f688b924959f
+        description: Feed containing all the necessary packages for configuring LabVIEW 2015
+        platform: windows
+        workspace: 83453433-fa08-424c-bac8-fce11946476d
+        packageReferences:
+        - 6aff8d1eac033d6f3a6c4891
+        - 6aff8d34ac033d6f3a6c4896
+        packageSources: []
+        lastUpdated: '2026-11-19T23:58:44.291Z'
+        ready: true
+      - id: 6afe35881301180055661762
+        feedName: The_E2E_testing_framework_validates_that_CLI_commands_work_correctly_against_non-mocked_SystemLink_services
+        name: The_E2E_testing_framework_validates_that_CLI_commands_work_correctly_against_non-mocked_SystemLink_services
+        directoryUri: /nirepo/v1/files/feeds/c6962d83-fc43-464b-9faf-6979a10d1384
+        description: ''
+        platform: windows
+        workspace: 83453433-fa08-424c-bac8-fce11946476d
+        packageReferences: []
+        packageSources: []
+        lastUpdated: '2026-11-18T23:32:24.824Z'
+        ready: true
+- request: POST /nirepo/v1/feeds
+  body:
+    feedName: e2e-slcli-migration-feeds
+    platform: ni-linux-rt
+    workspace: 2cbf3420-7454-4158-82fd-ea9690c094e1
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      jobId: 6b074085b2729196f6b6c8a5
+- request: GET /nirepo/v1/jobs/6b074085b2729196f6b6c8a5
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b074085b2729196f6b6c8a5
+        operation: CREATE_FEED
+        status: RUNNING
+        created: '2026-11-25T20:09:41.491Z'
+        resourceId: ''
+        returnType: FEED
+- request: GET /nirepo/v1/jobs/6b074085b2729196f6b6c8a5
+  response:
+    status: 303
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b074085b2729196f6b6c8a5
+        operation: CREATE_FEED
+        status: SUCCEEDED
+        created: '2026-11-25T20:09:41.491Z'
+        resourceId: 6b074085b2729196f6b6c8a6
+        resourceIds:
+        - 6b074085b2729196f6b6c8a6
+        returnType: FEED
+- request: POST /nirepo/v1/upload-packages?shouldOverwrite=true
+  body:
+    multipart:
+    - name: package
+      filename: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+      contentType: application/octet-stream
+      body: !file 'test_migration_feeds_e2e/ce88d264180f-ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk'
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      jobIds:
+      - 6b074086b2729196f6b6c8a7
+- request: GET /nirepo/v1/jobs/6b074086b2729196f6b6c8a7
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b074086b2729196f6b6c8a7
+        operation: UPLOAD_PACKAGE
+        status: RUNNING
+        created: '2026-11-25T20:09:42.888Z'
+        resourceId: ''
+        returnType: PACKAGE
+- request: GET /nirepo/v1/jobs/6b074086b2729196f6b6c8a7
+  response:
+    status: 303
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b074086b2729196f6b6c8a7
+        operation: UPLOAD_PACKAGE
+        status: SUCCEEDED
+        created: '2026-11-25T20:09:42.888Z'
+        resourceId: 6aff8f83ac033d6f3a6c489e
+        resourceIds:
+        - 6aff8f83ac033d6f3a6c489e
+        returnType: PACKAGE
+- request: POST /nirepo/v1/upload-packages?shouldOverwrite=true
+  body:
+    multipart:
+    - name: package
+      filename: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+      contentType: application/octet-stream
+      body: !file 'test_migration_feeds_e2e/b98c3f7ab850-ni-test-dummy_20.7.0.1-0+d1_all.ipk'
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      jobIds:
+      - 6b074087b2729196f6b6c8aa
+- request: GET /nirepo/v1/jobs/6b074087b2729196f6b6c8aa
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b074087b2729196f6b6c8aa
+        operation: UPLOAD_PACKAGE
+        status: RUNNING
+        created: '2026-11-25T20:09:43.943Z'
+        resourceId: ''
+        returnType: PACKAGE
+- request: GET /nirepo/v1/jobs/6b074087b2729196f6b6c8aa
+  response:
+    status: 303
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b074087b2729196f6b6c8aa
+        operation: UPLOAD_PACKAGE
+        status: SUCCEEDED
+        created: '2026-11-25T20:09:43.943Z'
+        resourceId: 6aff8f83ac033d6f3a6c489f
+        resourceIds:
+        - 6aff8f83ac033d6f3a6c489f
+        returnType: PACKAGE
+- request: POST /nirepo/v1/feeds/6b074085b2729196f6b6c8a6/add-package-references
+  body:
+    packageReferences:
+    - 6aff8f83ac033d6f3a6c489e
+    - 6aff8f83ac033d6f3a6c489f
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      jobId: 6b074089b2729196f6b6c8ad
+- request: GET /nirepo/v1/feeds/6b074085b2729196f6b6c8a6/packages
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      packages: []
+- request: GET /nirepo/v1/feeds/6b074085b2729196f6b6c8a6/packages
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      packages:
+      - id: 6aff8f83ac033d6f3a6c489e
+        fileUri: /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+        feedReferences:
+        - 6afe3e981301180055661766
+        - 6b074085b2729196f6b6c8a6
+        lastUpdated: '2026-11-25T20:09:45.043Z'
+        metadata:
+          packageName: ni-test-dummy-notices
+          version: 20.7.0.1-0+d1
+          architecture: all
+          depends:
+          - ni-euladepot (>= 20.5.0)
+          description: |-
+            NI Test Dummy Legal Notices
+            Installs Test Dummy legal notices for Linux.
+          fileName: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+          homepage: https://www.ni.com/linux/
+          maintainer: National Instruments
+          priority: 6
+          section: Infrastructure
+          size: 908
+          source: ni-test-dummy-notices
+          attributes:
+            Package: ni-test-dummy-notices
+            Version: 20.7.0.1-0+d1
+            Architecture: all
+            Maintainer: National Instruments
+            Source: ni-test-dummy-notices
+            Section: Infrastructure
+            Priority: extra
+            Depends: ni-euladepot (>= 20.5.0)
+            Homepage: https://www.ni.com/linux/
+            Description: |-
+              NI Test Dummy Legal Notices
+              Installs Test Dummy legal notices for Linux.
+            Size: '908'
+            MD5sum: 9f5af3960cbc172f65fd98122d42e012
+      - id: 6aff8f83ac033d6f3a6c489f
+        fileUri: /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+        feedReferences:
+        - 6afe3e981301180055661766
+        - 6b074085b2729196f6b6c8a6
+        lastUpdated: '2026-11-25T20:09:45.043Z'
+        metadata:
+          packageName: ni-test-dummy
+          version: 20.7.0.1-0+d1
+          architecture: all
+          depends:
+          - ni-test-dummy-libs (>= 20.7.0)
+          - ni-test-dummy-devel (>= 20.7.0)
+          - ni-test-dummy-notices (>= 20.7.0)
+          - ni-test-dummy-errors (>= 20.7.0)
+          description: |-
+            NI Test Dummy Package Linux Support
+            Linux support for test dummy headers and engine (Metapackage)
+          fileName: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+          homepage: https://www.ni.com/linux/
+          maintainer: National Instruments
+          priority: 6
+          section: Infrastructure
+          size: 668
+          source: ni-test-dummy
+          attributes:
+            Package: ni-test-dummy
+            Version: 20.7.0.1-0+d1
+            Architecture: all
+            Maintainer: National Instruments
+            Source: ni-test-dummy
+            Section: Infrastructure
+            Priority: extra
+            Depends: ni-test-dummy-libs (>= 20.7.0), ni-test-dummy-devel (>= 20.7.0), ni-test-dummy-notices
+              (>= 20.7.0), ni-test-dummy-errors (>= 20.7.0)
+            Homepage: https://www.ni.com/linux/
+            Description: |-
+              NI Test Dummy Package Linux Support
+              Linux support for test dummy headers and engine (Metapackage)
+            Size: '668'
+            MD5sum: e0a6c3a70ca294725edbca3c2c485f60
+- request: GET /nirepo/v1/feeds/6b074085b2729196f6b6c8a6/packages
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      packages:
+      - id: 6aff8f83ac033d6f3a6c489e
+        fileUri: /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+        feedReferences:
+        - 6afe3e981301180055661766
+        - 6b074085b2729196f6b6c8a6
+        lastUpdated: '2026-11-25T20:09:45.043Z'
+        metadata:
+          packageName: ni-test-dummy-notices
+          version: 20.7.0.1-0+d1
+          architecture: all
+          depends:
+          - ni-euladepot (>= 20.5.0)
+          description: |-
+            NI Test Dummy Legal Notices
+            Installs Test Dummy legal notices for Linux.
+          fileName: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+          homepage: https://www.ni.com/linux/
+          maintainer: National Instruments
+          priority: 6
+          section: Infrastructure
+          size: 908
+          source: ni-test-dummy-notices
+          attributes:
+            Package: ni-test-dummy-notices
+            Version: 20.7.0.1-0+d1
+            Architecture: all
+            Maintainer: National Instruments
+            Source: ni-test-dummy-notices
+            Section: Infrastructure
+            Priority: extra
+            Depends: ni-euladepot (>= 20.5.0)
+            Homepage: https://www.ni.com/linux/
+            Description: |-
+              NI Test Dummy Legal Notices
+              Installs Test Dummy legal notices for Linux.
+            Size: '908'
+            MD5sum: 9f5af3960cbc172f65fd98122d42e012
+      - id: 6aff8f83ac033d6f3a6c489f
+        fileUri: /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+        feedReferences:
+        - 6afe3e981301180055661766
+        - 6b074085b2729196f6b6c8a6
+        lastUpdated: '2026-11-25T20:09:45.043Z'
+        metadata:
+          packageName: ni-test-dummy
+          version: 20.7.0.1-0+d1
+          architecture: all
+          depends:
+          - ni-test-dummy-libs (>= 20.7.0)
+          - ni-test-dummy-devel (>= 20.7.0)
+          - ni-test-dummy-notices (>= 20.7.0)
+          - ni-test-dummy-errors (>= 20.7.0)
+          description: |-
+            NI Test Dummy Package Linux Support
+            Linux support for test dummy headers and engine (Metapackage)
+          fileName: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+          homepage: https://www.ni.com/linux/
+          maintainer: National Instruments
+          priority: 6
+          section: Infrastructure
+          size: 668
+          source: ni-test-dummy
+          attributes:
+            Package: ni-test-dummy
+            Version: 20.7.0.1-0+d1
+            Architecture: all
+            Maintainer: National Instruments
+            Source: ni-test-dummy
+            Section: Infrastructure
+            Priority: extra
+            Depends: ni-test-dummy-libs (>= 20.7.0), ni-test-dummy-devel (>= 20.7.0), ni-test-dummy-notices
+              (>= 20.7.0), ni-test-dummy-errors (>= 20.7.0)
+            Homepage: https://www.ni.com/linux/
+            Description: |-
+              NI Test Dummy Package Linux Support
+              Linux support for test dummy headers and engine (Metapackage)
+            Size: '668'
+            MD5sum: e0a6c3a70ca294725edbca3c2c485f60
+- request: GET /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file 'test_migration_feeds_e2e/ce88d264180f-ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk'
+- request: GET /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file 'test_migration_feeds_e2e/b98c3f7ab850-ni-test-dummy_20.7.0.1-0+d1_all.ipk'
+- request: DELETE /nirepo/v1/feeds/6b074085b2729196f6b6c8a6
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      jobId: 6b07408ab2729196f6b6c8ae
+- request: GET /nirepo/v1/jobs/6b07408ab2729196f6b6c8ae
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b07408ab2729196f6b6c8ae
+        operation: DELETE_FEED
+        status: RUNNING
+        created: '2026-11-25T20:09:46.104Z'
+        resourceId: ''
+        returnType: FEED
+- request: GET /nirepo/v1/jobs/6b07408ab2729196f6b6c8ae
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      job:
+        id: 6b07408ab2729196f6b6c8ae
+        operation: DELETE_FEED
+        status: SUCCEEDED
+        created: '2026-11-25T20:09:46.104Z'
+        resourceId: ''
+        resourceIds: []
+        returnType: FEED
