@@ -276,6 +276,11 @@ File parts match on their content's SHA-256.
   response: ...
 ```
 
+`test_migration_feeds_e2e.py` creates its own feed in the fixture-owned source
+workspace, uploads the packages in `tests/e2e/packages/`, and deletes the feed
+afterward. Recording it needs a source key that can create and delete feeds and
+upload packages.
+
 **4. Replay everything with no servers** (clear the variables from step 2 first):
 
 ```bash
