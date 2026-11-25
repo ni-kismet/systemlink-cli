@@ -1,0 +1,93 @@
+exchanges:
+- request: GET /nirepo/v1/feeds/6afe3e981301180055661766/packages
+  response:
+    status: 200
+    contentType: application/json; charset=utf-8
+    body:
+      packages:
+      - id: 6aff8f83ac033d6f3a6c489e
+        fileUri: /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+        feedReferences:
+        - 6afe3e981301180055661766
+        lastUpdated: '2026-11-20T00:08:35.3Z'
+        metadata:
+          packageName: ni-test-dummy-notices
+          version: 20.7.0.1-0+d1
+          architecture: all
+          depends:
+          - ni-euladepot (>= 20.5.0)
+          description: |-
+            NI Test Dummy Legal Notices
+            Installs Test Dummy legal notices for Linux.
+          fileName: ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+          homepage: https://www.ni.com/linux/
+          maintainer: National Instruments <LinuxMaintainers@ni.com>
+          priority: 6
+          section: Infrastructure
+          size: 922
+          source: ni-test-dummy-notices
+          attributes:
+            Package: ni-test-dummy-notices
+            Version: 20.7.0.1-0+d1
+            Architecture: all
+            Maintainer: National Instruments <LinuxMaintainers@ni.com>
+            Source: ni-test-dummy-notices
+            Section: Infrastructure
+            Priority: extra
+            Depends: ni-euladepot (>= 20.5.0)
+            Homepage: https://www.ni.com/linux/
+            Description: |-
+              NI Test Dummy Legal Notices
+              Installs Test Dummy legal notices for Linux.
+            Size: '922'
+            MD5sum: 4223250197700c0cea5e51932218ec3e
+      - id: 6aff8f83ac033d6f3a6c489f
+        fileUri: /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+        feedReferences:
+        - 6afe3e981301180055661766
+        lastUpdated: '2026-11-20T00:08:38.3Z'
+        metadata:
+          packageName: ni-test-dummy
+          version: 20.7.0.1-0+d1
+          architecture: all
+          depends:
+          - ni-test-dummy-libs (>= 20.7.0)
+          - ni-test-dummy-devel (>= 20.7.0)
+          - ni-test-dummy-notices (>= 20.7.0)
+          - ni-test-dummy-errors (>= 20.7.0)
+          description: |-
+            NI Test Dummy Package Linux Support
+            Linux support for test dummy headers and engine (Metapackage)
+          fileName: ni-test-dummy_20.7.0.1-0+d1_all.ipk
+          homepage: https://www.ni.com/linux/
+          maintainer: National Instruments <LinuxMaintainers@ni.com>
+          priority: 6
+          section: Infrastructure
+          size: 680
+          source: ni-test-dummy
+          attributes:
+            Package: ni-test-dummy
+            Version: 20.7.0.1-0+d1
+            Architecture: all
+            Maintainer: National Instruments <LinuxMaintainers@ni.com>
+            Source: ni-test-dummy
+            Section: Infrastructure
+            Priority: extra
+            Depends: ni-test-dummy-libs (>= 20.7.0), ni-test-dummy-devel (>= 20.7.0), ni-test-dummy-notices
+              (>= 20.7.0), ni-test-dummy-errors (>= 20.7.0)
+            Homepage: https://www.ni.com/linux/
+            Description: |-
+              NI Test Dummy Package Linux Support
+              Linux support for test dummy headers and engine (Metapackage)
+            Size: '680'
+            MD5sum: 1fe23ccb77aa0a2d55dfca63d8df2713
+- request: GET /nirepo/v1/files/packages/ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file 'test_migration_feeds_e2e/9613ccb24929-ni-test-dummy-notices_20.7.0.1-0+d1_all.ipk'
+- request: GET /nirepo/v1/files/packages/ni-test-dummy_20.7.0.1-0+d1_all.ipk
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file 'test_migration_feeds_e2e/4c956f3a1b69-ni-test-dummy_20.7.0.1-0+d1_all.ipk'
