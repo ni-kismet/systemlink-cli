@@ -14,6 +14,8 @@ from slcli.migration.schema import VersionedModel
 from slcli.migration.state import MigrationDiscovery
 from slcli.migration.testmonitor.migration_task import migrate_test_monitor_task
 from slcli.migration.testmonitor.models import TestMonitorMigration
+from slcli.migration.users.migration_task import migrate_users_task
+from slcli.migration.users.select_task import select_users_task
 from slcli.migration.workspace_task import synchronize_workspaces_task
 from slcli.migration.workspaces import WorkspaceMapping
 
@@ -59,8 +61,8 @@ def migrate_flow(
 ) -> MigrationOutcome:
     """Apply previously discovered resources to the destination.
 
-    File transfer and Test Monitor migration run in parallel after workspace
-    synchronization. Results are marked COMPLETE once Test Monitor migration completes.
+    Interactive user review/selection follows workspace synchronization, then all other migrations
+    run in parallel.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -77,10 +79,12 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
+    selected_users = select_users_task(source_profile, mapping)
+    users_future = migrate_users_task.submit(destination_profile, selected_users)
     files_future = transfer_files_task.submit(
         migration_id, source_profile, destination_profile, discovery.files, mapping
     )
-    test_monitor = migrate_test_monitor_task.submit(
+    test_monitor_future = migrate_test_monitor_task.submit(
         migration_id,
         source_profile,
         destination_profile,
@@ -90,11 +94,14 @@ def migrate_flow(
         result_batch_size,
         discovery.files.source_to_destination_id_map,
     )
-    test_monitor_result = join(test_monitor)
-    files = join(files_future)
+    join("User", users_future)
+    test_monitor_result = join("Test Monitor", test_monitor_future)
+    files = join("File", files_future)
+
     files_summary = format_file_transfer_summary(files)
     _logger.info(files_summary)
     click.echo(files_summary)
+
     return MigrationOutcome(
         mapping=mapping,
         discovery=discovery,
@@ -103,7 +110,7 @@ def migrate_flow(
     )
 
 
-def join(future: Any) -> Any:
+def join(label: str, future: Any) -> Any:
     """Wait for a Prefect future and return its result.
 
     Args:
@@ -113,4 +120,6 @@ def join(future: Any) -> Any:
         The future's result.
     """
     future.wait()
+    if not future.state.is_completed():
+        _logger.error("%s migration failed: %s", label, future.state.message)
     return future.result()

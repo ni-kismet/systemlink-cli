@@ -1,0 +1,1 @@
+Add interactive migration of active users and their workspace access to `slcli migrate`. User records without an account type are treated as users, special users with a `-` email are excluded, and users matching multiple destination accounts are skipped with a warning.
