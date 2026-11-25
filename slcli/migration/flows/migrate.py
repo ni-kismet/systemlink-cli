@@ -1,7 +1,7 @@
 """Apply a migration plan by synchronizing workspaces and migrating resources."""
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import click
 from prefect import flow
@@ -61,9 +61,8 @@ def migrate_flow(
 ) -> MigrationOutcome:
     """Apply previously discovered resources to the destination.
 
-    User review follows workspace synchronization. User migration, file transfer,
-    and Test Monitor migration then run in parallel. Results are marked COMPLETE once
-    Test Monitor migration completes.
+    Interactive user review/selection follows workspace synchronization, then all other migrations
+    run in parallel.
 
     Args:
         migration_id: Migration that scopes task cache keys.
@@ -80,12 +79,12 @@ def migrate_flow(
     mapping = synchronize_workspaces_task(
         migration_id, destination_profile, discovery.workspaces, workspace_mappings
     )
-    reviewed_users = select_users_task(source_profile, mapping)
-    users_future = migrate_users_task.submit(destination_profile, reviewed_users)
+    selected_users = select_users_task(source_profile, mapping)
+    users_future = migrate_users_task.submit(destination_profile, selected_users)
     files_future = transfer_files_task.submit(
         migration_id, source_profile, destination_profile, discovery.files, mapping
     )
-    test_monitor = migrate_test_monitor_task.submit(
+    test_monitor_future = migrate_test_monitor_task.submit(
         migration_id,
         source_profile,
         destination_profile,
@@ -95,24 +94,32 @@ def migrate_flow(
         result_batch_size,
         discovery.files.source_to_destination_id_map,
     )
-    for resource, future in (
-        ("User", users_future),
-        ("Test Monitor", test_monitor),
-        ("File", files_future),
-    ):
-        future.wait()
-        if not future.state.is_completed():
-            _logger.error("%s migration failed: %s", resource, future.state.message)
+    join("User", users_future)
+    test_monitor_result = join("Test Monitor", test_monitor_future)
+    files = join("File", files_future)
 
-    users_future.result()
-    test_monitor_result = test_monitor.result()
-    files = files_future.result()
     files_summary = format_file_transfer_summary(files)
     _logger.info(files_summary)
     click.echo(files_summary)
+
     return MigrationOutcome(
         mapping=mapping,
         discovery=discovery,
         test_monitor=test_monitor_result,
         files=files,
     )
+
+
+def join(label: str, future: Any) -> Any:
+    """Wait for a Prefect future and return its result.
+
+    Args:
+        future: The Prefect future to wait on.
+
+    Returns:
+        The future's result.
+    """
+    future.wait()
+    if not future.state.is_completed():
+        _logger.error("%s migration failed: %s", label, future.state.message)
+    return future.result()
