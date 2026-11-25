@@ -253,6 +253,29 @@ exchanges:
     body: {products: [...], continuationToken: null}
 ```
 
+Binary bodies, such as downloaded packages (`.nipkg`, `.ipk`, `.deb`) and the
+file parts of multipart uploads, are not stored in the YAML. Recording writes
+them to a directory named after the tape (`tapes/<side>/<module>/`), and the
+tape references them with `!file`, relative to the tape's directory. Multipart
+requests are stored as a list of parts, so a new random boundary still matches.
+File parts match on their content's SHA-256.
+
+```yaml
+- request: GET /nirepo/v1/files/packages/foo_1.0_x64.nipkg
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file 'test_module/3f2a9c1b7d4e-foo_1.0_x64.nipkg'
+- request: POST /nifeed/v1/feeds/<id>/packages?shouldOverwrite=false
+  body:
+    multipart:
+    - name: package
+      filename: foo_1.0_x64.nipkg
+      contentType: application/octet-stream
+      body: !file 'test_module/3f2a9c1b7d4e-foo_1.0_x64.nipkg'
+  response: ...
+```
+
 **4. Replay everything with no servers** (clear the variables from step 2 first):
 
 ```bash

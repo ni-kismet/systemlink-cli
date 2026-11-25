@@ -39,6 +39,9 @@ side:
   - Headers and credentials are dropped, and the upstream URL is stored as
     `{{base_url}}`.
   - Optional `note:` fields explain hand edits.
+  - Binary bodies (package downloads, multipart file parts) are saved as files
+    next to the tape and referenced with `!file`. Multipart requests match by
+    part, so random boundaries don't matter.
 - **Matching.** Method, path, query (order-insensitive), and body. Volatile
   migration timestamps are masked. A miss returns HTTP 598 and fails the test
   with a list of the unmatched requests.

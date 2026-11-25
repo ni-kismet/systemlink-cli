@@ -12,11 +12,23 @@ import pytest
 import requests
 
 from slcli.migration.annotations import STARTED_AT
+from tests.replay import server as replay_server
 from tests.replay.server import REPLAY_MISS_STATUS, Deck, FakeServer, Upstream
 from tests.replay.tape import Exchange, Tape
 
 # Unit tests stub requests.get/post; sessions still reach the local servers.
 http = requests.Session()
+
+# An ar archive header followed by bytes that are not valid UTF-8, like a real package.
+PACKAGE = b"!<arch>\n" + bytes(range(256)) * 4
+
+
+def _summarize(body: bytes, content_type: str) -> Any:
+    if not body:
+        return None
+    if "json" in content_type:
+        return json.loads(body)
+    return {"bytes": len(body)}
 
 
 class _Upstream:
@@ -34,18 +46,23 @@ class _Upstream:
                 upstream.headers.append({k.lower(): v for k, v in self.headers.items()})
                 upstream.counts[self.path] = upstream.counts.get(self.path, 0) + 1
                 length = int(self.headers.get("Content-Length") or 0)
-                body = json.dumps(
-                    {
-                        "call": upstream.counts[self.path],
-                        "received": json.loads(self.rfile.read(length)) if length else None,
-                        "self": f"{upstream.url}/item",
-                    }
-                ).encode()
+                received = self.rfile.read(length) if length else b""
+                content_type = "application/json"
+                if self.path.startswith("/files/"):
+                    body, content_type = PACKAGE, "application/octet-stream"
+                else:
+                    body = json.dumps(
+                        {
+                            "call": upstream.counts[self.path],
+                            "received": _summarize(received, self.headers["Content-Type"]),
+                            "self": f"{upstream.url}/item",
+                        }
+                    ).encode()
                 status = 201 if self.command == "POST" else 200
                 if self.path.startswith("/status/"):
                     status = int(self.path.rsplit("/", 1)[-1])
                 self.send_response(status)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -199,13 +216,19 @@ def test_generated_values_are_recorded_and_replayed_in_order(
         replaying.generated("migrationId", lambda: "invented")
 
 
-def test_replay_handler_failure_is_reported_as_a_miss(tmp_path: Path) -> None:
+def test_replay_handler_failure_is_reported_as_a_miss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*_: Any) -> str:
+        raise ValueError("unmatchable")
+
+    monkeypatch.setattr(replay_server, "request_key", fail)
     deck = Deck(tmp_path / "missing.yaml")
 
-    response = _serve(deck, lambda url: http.post(f"{url}/svc/items", data=b"not json"))
+    response = _serve(deck, lambda url: http.post(f"{url}/svc/items", json={}))
 
     assert response.status_code == REPLAY_MISS_STATUS
-    assert len(deck.misses) == 1 and "JSONDecodeError" in deck.misses[0]
+    assert len(deck.misses) == 1 and "ValueError: unmatchable" in deck.misses[0]
 
 
 def test_recording_upstream_failure_is_reported_as_a_miss(tmp_path: Path) -> None:
@@ -291,3 +314,98 @@ def test_concurrent_identical_requests_get_distinct_exchanges(
 
     assert sorted(r.json()["call"] for r in responses) == list(range(1, count + 1))
     assert deck.unserved() == [] and deck.misses == []
+
+
+def _upload(url: str, content: bytes = PACKAGE) -> requests.Response:
+    return http.post(
+        f"{url}/nifeed/v1/feeds/f1/packages?shouldOverwrite=false",
+        files={"package": ("foo_1.0_x64.nipkg", content, "application/octet-stream")},
+    )
+
+
+def test_downloaded_file_is_saved_beside_the_tape_and_replayed_byte_for_byte(
+    upstream: _Upstream, tmp_path: Path
+) -> None:
+    path = tmp_path / "t.yaml"
+    tape = _record(upstream, path, lambda url: http.get(f"{url}/files/packages/foo_1.0_x64.nipkg"))
+
+    [saved] = (tmp_path / "t").iterdir()
+    assert saved.name.endswith("-foo_1.0_x64.nipkg") and saved.read_bytes() == PACKAGE
+    assert f"body: !file 't/{saved.name}'" in tape
+
+    deck = Deck(path)
+    response = _serve(deck, lambda url: http.get(f"{url}/files/packages/foo_1.0_x64.nipkg"))
+
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "application/octet-stream"
+    assert response.content == PACKAGE
+    assert deck.misses == []
+
+
+def test_multipart_upload_matches_despite_new_boundary_and_misses_other_content(
+    upstream: _Upstream, tmp_path: Path
+) -> None:
+    path = tmp_path / "t.yaml"
+    tape = _record(upstream, path, _upload)
+
+    [saved] = (tmp_path / "t").iterdir()
+    assert saved.read_bytes() == PACKAGE
+    assert "name: package" in tape and "filename: foo_1.0_x64.nipkg" in tape
+
+    deck = Deck(path)
+    matched, missed = _serve(deck, lambda url: (_upload(url), _upload(url, PACKAGE + b"x")))
+
+    assert (matched.status_code, missed.status_code) == (201, REPLAY_MISS_STATUS)
+    assert matched.json()["call"] == 1
+    assert len(deck.misses) == 1
+
+
+def test_multipart_text_fields_are_stored_inline_and_matched(
+    upstream: _Upstream, tmp_path: Path
+) -> None:
+    path = tmp_path / "t.yaml"
+
+    def upload(url: str, workspace: str) -> requests.Response:
+        return http.post(
+            f"{url}/svc/upload",
+            data={"metadata": json.dumps({"workspace": workspace})},
+            files={"file": ("a.bin", PACKAGE)},
+        )
+
+    tape = _record(upstream, path, lambda url: upload(url, "ws1"))
+    assert "workspace: ws1" in tape
+
+    responses = _serve(Deck(path), lambda url: (upload(url, "ws2"), upload(url, "ws1")))
+
+    assert [r.status_code for r in responses] == [REPLAY_MISS_STATUS, 201]
+
+
+def test_rerecording_removes_files_the_new_tape_no_longer_uses(
+    upstream: _Upstream, tmp_path: Path
+) -> None:
+    path = tmp_path / "t.yaml"
+    _record(upstream, path, lambda url: http.get(f"{url}/files/packages/old.nipkg"))
+    _record(upstream, path, lambda url: http.get(f"{url}/svc/items"))
+
+    assert not (tmp_path / "t").exists()
+
+
+def test_hand_written_file_reference_is_served(tmp_path: Path) -> None:
+    (tmp_path / "t").mkdir()
+    (tmp_path / "t" / "pkg.ipk").write_bytes(PACKAGE)
+    path = tmp_path / "t.yaml"
+    path.write_text(
+        """\
+exchanges:
+- request: GET /nirepo/v1/files/packages/pkg.ipk
+  response:
+    status: 200
+    contentType: application/octet-stream
+    body: !file t/pkg.ipk
+""",
+        encoding="utf-8",
+    )
+
+    response = _serve(Deck(path), lambda url: http.get(f"{url}/nirepo/v1/files/packages/pkg.ipk"))
+
+    assert response.content == PACKAGE
