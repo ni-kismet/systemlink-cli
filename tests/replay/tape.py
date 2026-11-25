@@ -78,6 +78,21 @@ def _is_text(content_type: Optional[str]) -> bool:
     return not content_type or any(t in content_type.lower() for t in _TEXT_CONTENT_TYPES)
 
 
+def _download_name(content_disposition: Optional[str]) -> Optional[str]:
+    """Return the file name of an ``attachment`` response, ``""`` if unnamed, else None."""
+    if not content_disposition:
+        return None
+    message = Message()
+    message["Content-Disposition"] = content_disposition
+    if message.get_content_disposition() != "attachment":
+        return None
+    return message.get_filename() or ""
+
+
+def _is_multipart(content_type: Optional[str]) -> bool:
+    return bool(content_type) and str(content_type).lower().startswith("multipart/")
+
+
 def _content_type_param(content_type: str, param: str) -> Optional[str]:
     message = Message()
     message["Content-Type"] = content_type
@@ -116,7 +131,7 @@ def _parse_body(data: bytes, content_type: Optional[str] = None, name: str = "bo
     """
     if not data:
         return None
-    if content_type and content_type.lower().startswith("multipart/"):
+    if content_type and _is_multipart(content_type):
         boundary = _content_type_param(content_type, "boundary")
         if boundary:
             return {"multipart": _parse_multipart(data, boundary)}
@@ -230,13 +245,27 @@ class Exchange:
         response_body: bytes,
         upstream_url: str,
         request_content_type: Optional[str] = None,
+        content_disposition: Optional[str] = None,
     ) -> "Exchange":
-        """Build an exchange from live traffic, hiding the upstream URL in text responses."""
+        """Build an exchange from live traffic, hiding the upstream URL in text responses.
+
+        A response the server marks as a download (``Content-Disposition: attachment``)
+        is saved as a file with its exact bytes, whatever its content type.
+        """
         name = _last_segment(path_and_query)
-        parsed = _parse_body(response_body, content_type, name)
-        if not isinstance(parsed, FileData):
+        download_name = _download_name(content_disposition)
+        if download_name is not None:
+            parsed: Any = FileData(download_name or name, response_body) if response_body else None
+        elif _is_text(content_type) or _is_multipart(content_type):
             hidden = response_body.replace(upstream_url.encode(), BASE_URL.encode())
             parsed = _parse_body(hidden, content_type, name)
+            # Text that is not UTF-8 is saved as a file, which keeps its exact bytes.
+            if isinstance(parsed, FileData):
+                parsed = FileData(name, response_body)
+        else:
+            # Binary bodies are saved to a file unchanged; skipping the URL swap avoids an
+            # unnecessary copy.
+            parsed = _parse_body(response_body, content_type, name)
         return cls(
             request=f"{method} {path_and_query}",
             body=parse_request_body(path_and_query, body, request_content_type),

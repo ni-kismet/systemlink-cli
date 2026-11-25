@@ -14,7 +14,7 @@ import requests
 from slcli.migration.annotations import STARTED_AT
 from tests.replay import server as replay_server
 from tests.replay.server import REPLAY_MISS_STATUS, Deck, FakeServer, Upstream
-from tests.replay.tape import Exchange, Tape
+from tests.replay.tape import Exchange, FileData, Tape
 
 # Unit tests stub requests.get/post; sessions still reach the local servers.
 http = requests.Session()
@@ -428,3 +428,50 @@ exchanges:
     response = _serve(Deck(path), lambda url: http.get(f"{url}/nirepo/v1/files/packages/pkg.ipk"))
 
     assert response.content == PACKAGE
+
+
+@pytest.mark.parametrize("content_type", ["application/octet-stream", "text/plain"])
+def test_recorded_binary_response_keeps_its_exact_bytes(content_type: str) -> None:
+    upstream_url = "http://upstream:9090"
+    received = PACKAGE + upstream_url.encode()
+
+    exchange = Exchange.recorded(
+        "GET", "/files/pkg.ipk", b"", 200, content_type, received, upstream_url
+    )
+
+    assert exchange.response_body == FileData("pkg.ipk", received)
+    if content_type == "application/octet-stream":
+        assert exchange.response_body.data is received
+
+
+def test_recorded_download_path_error_stays_inline() -> None:
+    exchange = Exchange.recorded(
+        "GET",
+        "/nifile/v1/service-groups/Default/files/f1/data",
+        b"",
+        404,
+        "application/json",
+        b'{"error": {"name": "Skyline.NotFound"}}',
+        "http://upstream:9090",
+    )
+
+    assert exchange.response_body == {"error": {"name": "Skyline.NotFound"}}
+
+
+def test_recorded_attachment_is_saved_as_a_file_even_when_text() -> None:
+    upstream_url = "http://upstream:9090"
+    received = f"link,{upstream_url}/x\n".encode()
+
+    exchange = Exchange.recorded(
+        "GET",
+        "/nifile/v1/service-groups/Default/files/f1/data",
+        b"",
+        200,
+        "text/csv",
+        received,
+        upstream_url,
+        content_disposition='attachment; filename="report.csv"',
+    )
+
+    assert exchange.response_body == FileData("report.csv", received)
+    assert exchange.response_body.data is received

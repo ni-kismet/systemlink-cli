@@ -148,6 +148,7 @@ class Deck:
             response.content,
             upstream.base_url,
             _content_type(headers),
+            response.headers.get("Content-Disposition"),
         )
         with self._lock:
             self.tape.exchanges.append(exchange)

@@ -254,7 +254,9 @@ exchanges:
 ```
 
 Binary bodies, such as downloaded packages (`.nipkg`, `.ipk`, `.deb`) and the
-file parts of multipart uploads, are not stored in the YAML. Recording writes
+file parts of multipart uploads, are not stored in the YAML. Any response the
+server sends as a download (`Content-Disposition: attachment`) is treated the
+same way, even if it is text, and keeps its exact bytes. Recording writes
 them to a directory named after the tape (`tapes/<side>/<module>/`), and the
 tape references them with `!file`, relative to the tape's directory. Multipart
 requests are stored as a list of parts, so a new random boundary still matches.
