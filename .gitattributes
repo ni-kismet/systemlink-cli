@@ -1,6 +1,7 @@
-# Bodies saved beside replay tapes match on their exact bytes; never convert line endings.
-tests/e2e/tapes/*/*/** -text
 # E2E tests compare downloads to these packages byte for byte.
 tests/e2e/packages/** -text
-# Tapes themselves are text, even if one sits inside a module's files directory.
-tests/e2e/tapes/**/*.yaml text
+
+# Bodies saved beside replay tapes match on their exact bytes; never convert line endings.
+tests/e2e/tapes/*/*/** -text
+# Tape manifests are text; nested saved bodies must remain byte-identical.
+tests/e2e/tapes/*/*.yaml text
