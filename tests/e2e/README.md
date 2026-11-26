@@ -277,6 +277,50 @@ This repository is public: commit source (SLS) tapes only.
 `tests/e2e/tapes/destination/` is listed in `.gitignore`, so destination tapes
 stay local; record them yourself before replaying the destination.
 
+#### Run the Source on a Local SystemLink Server Container
+
+Instead of replaying source tapes, migration tests can run against a fresh
+SystemLink Server container started from the published base image
+(`ghcr.io/ni-kismet/sls-server:26.5`, public). The tests seed all source data
+themselves; CI runs this configuration in the `E2E (Migration - SLS container)`
+job, next to the replay job.
+
+The container needs Docker with KVM: Linux, or Windows with Docker Engine inside
+a WSL2 distro that has nested virtualization (`/dev/kvm` must exist there). See
+the [sls-test local guide](https://github.com/ni-kismet/sls-test/blob/main/docs/local.md).
+
+**1. Start the server** with the compose file from a checkout of
+[`ni-kismet/sls-test`](https://github.com/ni-kismet/sls-test) (the first pull is ~20 GB):
+
+```bash
+SLS_IMAGE=ghcr.io/ni-kismet/sls-server:26.5 SLS_HTTP_PORT=8080 \
+docker compose -f src/testkit/compose.yaml up -d --wait
+```
+
+**2. Prepare the source.** This signs in as the container's web admin
+(`admin`/`test`), creates an API key, saves it in the `migration-source` slcli
+profile, and waits until the source workspaces accept writes. A freshly started
+server can take several minutes:
+
+```bash
+poetry run python -m tests.e2e.sls_container --url http://127.0.0.1:8080
+```
+
+Add `--container <name>` (see `docker compose -f src/testkit/compose.yaml ps`) to
+stop waiting as soon as the container records a Windows bugcheck; in CI it
+defaults to `$SLS_CONTAINER` from `sls-start-server`.
+
+**3. Run the tests** with a live source:
+
+```bash
+SLCLI_E2E_SOURCE_MODE=live SLCLI_E2E_SOURCE_PROFILE=migration-source \
+SLCLI_E2E_DESTINATION_PROFILE=default \
+poetry run pytest tests/e2e -m e2e_migration --timeout=300 --no-cov
+```
+
+Stop the server with `docker compose -f src/testkit/compose.yaml down -t 150`;
+add `-v` to discard its data for a fresh server next time.
+
 #### Manually Test Destination Workspace Creation
 
 The Workspace API does not provide a way to delete workspaces, so to test creation of missing workspaces (without acumulating disabled workspaces over time), we have to use a temporary destination Valinor deployment that can be thrown away. These tests require an explicit opt-in (via env var) and are not run on the CI.
@@ -522,20 +566,26 @@ Configure these environment variables for local E2E testing:
 
 ## CI Configuration
 
-The GitHub Actions pipeline can run the E2E suite in four separate jobs:
+The GitHub Actions pipeline can run the E2E suite in these separate jobs:
 
 - `E2E (SLS)` runs `poetry run pytest tests/e2e/ -m "e2e and not sle" --e2e-platform sls -n auto --timeout=300`
 - `E2E (SLE)` runs `poetry run pytest tests/e2e/ -m "e2e and not sls" --e2e-platform sle -n auto --timeout=300`
 - `E2E (Migration - full OS matrix)` runs the subset of `e2e_migration` tests requiring supported-OS coverage on Ubuntu, macOS, and Windows.
-- `E2E (Migration)` runs all other `e2e_migration` tests.
+- `E2E (Migration)` runs all other `e2e_migration` tests with a replayed source.
+- `E2E (Migration - SLS container)` runs the same tests with a live source: a fresh SystemLink Server container started by `ni-kismet/sls-test/sls-start-server` on `ubuntu-26.04`. The Windows guest can crash on nested KVM; the job does not retry, and on failure it reports the container health, any bugcheck, and the host CPU in the job summary, and uploads the container logs.
 - `Native credentials` runs `poetry run pytest tests/e2e/test_credentials_e2e.py -k test_native_secure_read_logout --timeout=120 --no-cov -q` on Ubuntu, macOS, and Windows.
 
 The CI jobs use `SLCLI_E2E_SLS_BASE_URL` for SLS and
 `https://test-api.lifecyclesolutions.ni.com` for SLE. Set the SLS URL to the
 new server reachable by GitHub-hosted runners and update the SLS API key secret
-for that server before running CI. The migration job needs no SLS server: it
-replays the committed source tapes and runs the destination live against SLE
-with `SLCLI_E2E_SLE_API_KEY`, using the fixed migration fixture workspaces.
+for that server before running CI. The `E2E (Migration)` job needs no SLS
+server: it replays the committed source tapes. The `E2E (Migration - SLS
+container)` job needs no SLS secret: it creates an API key on its own container
+with `python -m tests.e2e.sls_container`, and it uses SLE's final host,
+`https://test-api.systemlink.ni.dev`, because a redirected POST cannot resend a
+streamed file upload. Both run the destination live against
+SLE with `SLCLI_E2E_SLE_API_KEY`, using the fixed migration fixture workspaces,
+so they share a concurrency group and never overlap.
 
 ### Required GitHub Secrets
 
