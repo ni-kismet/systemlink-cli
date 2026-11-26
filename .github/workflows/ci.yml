@@ -489,13 +489,22 @@ jobs:
             docker logs "$SLS_CONTAINER" 2>&1 | grep -i 'bugcheck' || true
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
+      - name: Upload Prefect server log
+        if: ${{ always() && steps.migration-config.outputs.enabled == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: migration-sls-container-prefect-server-log
+          path: ${{ runner.temp }}/prefect-server.log
+          if-no-files-found: ignore
+
+      # Collected on green runs too, as a baseline for comparing failures.
       - name: Collect SystemLink Server logs
-        if: ${{ failure() && steps.migration-config.outputs.enabled == 'true' }}
+        if: ${{ !cancelled() && steps.migration-config.outputs.enabled == 'true' }}
+        continue-on-error: true
         uses: ni-kismet/sls-test/sls-collect-logs@6be49fefd28444307e7307dd4a13accd17ca8a06 # main
         with:
           artifact: migration-sls-container-logs
           container: sls
-          path: ${{ runner.temp }}/prefect-server.log
 
   e2e-sle:
     name: E2E (SLE)
