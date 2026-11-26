@@ -10,11 +10,15 @@ The command signs in as the container's web admin, creates an API key, saves it
 in an slcli profile, and waits until Test Monitor and Files accept writes in the
 source workspaces. The tests seed their own data; run them with
 ``SLCLI_E2E_SOURCE_MODE=live`` and ``SLCLI_E2E_SOURCE_PROFILE`` set to the profile.
+
+With ``--container`` (default ``$SLS_CONTAINER``, which ``sls-start-server``
+exports), it stops waiting as soon as the container records a Windows bugcheck.
 """
 
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 import uuid
@@ -32,12 +36,16 @@ DEFAULT_URL = "http://127.0.0.1:8080"
 DEFAULT_PROFILE = "migration-source"
 RETRY_INTERVAL_SECONDS = 10.0
 REQUEST_TIMEOUT_SECONDS = 60
+DOCKER_TIMEOUT_SECONDS = 30
+# Written by the image's sls-panic-watch after a Windows bugcheck; the guest stays paused.
+PANIC_FILE = "${STORAGE:-/storage}/sls-panic.txt"
 
 # Workspaces the tests write to on the source. Disabled workspaces reject writes anyway.
 TEST_MONITOR_WORKSPACES = (E2EWorkspace.SOURCE, E2EWorkspace.SOURCE_OTHER)
 FILES_WORKSPACE = E2EWorkspace.FILES_SOURCE
 
 T = TypeVar("T")
+CrashCheck = Callable[[], Optional[str]]
 
 
 def retry(
@@ -45,22 +53,46 @@ def retry(
     action: Callable[[], T],
     deadline: float,
     interval: float = RETRY_INTERVAL_SECONDS,
+    crashed: Optional[CrashCheck] = None,
 ) -> T:
     """Call ``action`` until it succeeds or ``deadline`` (monotonic seconds) passes.
 
     A freshly started server answers before every service knows about new
-    workspaces and keys, so any failure is retried until the deadline.
+    workspaces and keys, so any failure is retried until the deadline. After a
+    failure, ``crashed`` can end the wait early by returning why the server is gone.
     """
     attempt = 1
     while True:
         try:
             return action()
         except Exception as exc:
+            crash = crashed() if crashed else None
+            if crash:
+                raise RuntimeError(f"Stopped waiting to {description}: {crash}") from exc
             if time.monotonic() >= deadline:
                 raise RuntimeError(f"Gave up waiting to {description}: {exc}") from exc
             print(f"Waiting to {description} (attempt {attempt}): {exc}", flush=True)
             attempt += 1
             time.sleep(interval)
+
+
+def guest_crash(container: str) -> Optional[str]:
+    """Return the container's Windows bugcheck record, or ``None`` if it has none.
+
+    Docker errors count as no crash, so the wait falls back to its deadline.
+    """
+    try:
+        result = subprocess.run(
+            ["docker", "exec", container, "sh", "-c", f'cat "{PANIC_FILE}" 2>/dev/null'],
+            capture_output=True,
+            text=True,
+            timeout=DOCKER_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    record = result.stdout.strip() if result.returncode == 0 else ""
+    return f"Windows bugcheck in container {container} ({record})" if record else None
 
 
 def create_api_key(
@@ -170,16 +202,26 @@ def probe_files(connection: MigrationConnection, workspace_id: str) -> None:
         _checked(session.delete(f"{files_url}/files/{file_id}", timeout=REQUEST_TIMEOUT_SECONDS))
 
 
-def wait_until_writable(profile: str, deadline: float) -> None:
+def wait_until_writable(
+    profile: str, deadline: float, crashed: Optional[CrashCheck] = None
+) -> None:
     """Create the source workspaces and wait until the tests' services accept writes."""
     connection = retry(
-        f"load profile {profile}", lambda: resolve_migration_connection(profile), deadline
+        f"load profile {profile}",
+        lambda: resolve_migration_connection(profile),
+        deadline,
+        crashed=crashed,
     )
     for workspace in TEST_MONITOR_WORKSPACES:
         _wait_for_workspace(
-            connection, workspace, probe_test_monitor, "write Test Monitor results", deadline
+            connection,
+            workspace,
+            probe_test_monitor,
+            "write Test Monitor results",
+            deadline,
+            crashed,
         )
-    _wait_for_workspace(connection, FILES_WORKSPACE, probe_files, "upload files", deadline)
+    _wait_for_workspace(connection, FILES_WORKSPACE, probe_files, "upload files", deadline, crashed)
 
 
 def _wait_for_workspace(
@@ -188,13 +230,20 @@ def _wait_for_workspace(
     probe: Callable[[MigrationConnection, str], None],
     activity: str,
     deadline: float,
+    crashed: Optional[CrashCheck],
 ) -> None:
     workspace_id = retry(
         f"create {workspace.value}",
         lambda: get_or_create_workspace(connection, workspace),
         deadline,
+        crashed=crashed,
     )
-    retry(f"{activity} in {workspace.value}", lambda: probe(connection, workspace_id), deadline)
+    retry(
+        f"{activity} in {workspace.value}",
+        lambda: probe(connection, workspace_id),
+        deadline,
+        crashed=crashed,
+    )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -225,15 +274,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=20.0,
         help="Time allowed for the server to accept the key and workspaces (default: 20)",
     )
+    parser.add_argument(
+        "--container",
+        default=os.getenv("SLS_CONTAINER") or "",
+        help="Container to check for a Windows bugcheck while waiting (default: $SLS_CONTAINER)",
+    )
     args = parser.parse_args(argv)
     base_url = args.url.rstrip("/")
     deadline = time.monotonic() + args.timeout_minutes * 60
+    container: str = args.container
+    crashed: Optional[CrashCheck] = (lambda: guest_crash(container)) if container else None
 
     started = time.monotonic()
     secret = retry(
         f"create an API key on {base_url}",
         lambda: create_api_key(base_url, args.admin_user, args.admin_password),
         deadline,
+        crashed=crashed,
     )
     mask_in_github_actions(secret)
     retry(
@@ -241,7 +298,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         lambda: save_profile(args.profile, base_url, secret),
         deadline,
     )
-    wait_until_writable(args.profile, deadline)
+    wait_until_writable(args.profile, deadline, crashed)
     print(
         f"Source profile '{args.profile}' is ready after {time.monotonic() - started:.0f}s. "
         f"Run the tests with SLCLI_E2E_SOURCE_MODE=live SLCLI_E2E_SOURCE_PROFILE={args.profile}.",

@@ -1,6 +1,7 @@
 """Tests for preparing an SLS container as the migration E2E source."""
 
-from typing import Any, Dict, List, Tuple
+import subprocess
+from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
 import pytest
@@ -83,6 +84,53 @@ def test_retry_gives_up_at_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None
 
     with pytest.raises(RuntimeError, match="Gave up waiting to probe: UnknownWorkspace"):
         sls_container.retry("probe", action, deadline=0.0)
+
+
+def test_retry_stops_when_the_server_crashed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A crashed server ends the wait at the first failure instead of the deadline."""
+    monkeypatch.setattr(sls_container.time, "sleep", lambda _: None)
+    attempts: List[int] = []
+
+    def action() -> None:
+        attempts.append(1)
+        raise ConnectionResetError("Connection reset by peer")
+
+    with pytest.raises(RuntimeError, match="Stopped waiting to probe: Windows bugcheck"):
+        sls_container.retry(
+            "probe", action, deadline=float("inf"), crashed=lambda: "Windows bugcheck in sls"
+        )
+    assert len(attempts) == 1
+
+
+@pytest.mark.parametrize(
+    "outcome, expected",
+    [
+        (
+            subprocess.CompletedProcess([], 0, stdout="2026-11-26T01:15:21Z VM paused\n"),
+            "Windows bugcheck in container sls (2026-11-26T01:15:21Z VM paused)",
+        ),
+        (subprocess.CompletedProcess([], 1, stdout=""), None),
+        (FileNotFoundError("docker"), None),
+        (subprocess.TimeoutExpired("docker", 30), None),
+    ],
+    ids=["bugcheck", "no-bugcheck", "no-docker", "docker-timeout"],
+)
+def test_guest_crash_reads_the_panic_record(
+    monkeypatch: pytest.MonkeyPatch, outcome: Any, expected: Optional[str]
+) -> None:
+    """Only a recorded bugcheck counts as a crash; Docker problems leave the deadline in charge."""
+    commands: List[List[str]] = []
+
+    def run(command: List[str], **_: Any) -> "subprocess.CompletedProcess[str]":
+        commands.append(command)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(sls_container.subprocess, "run", run)
+
+    assert sls_container.guest_crash("sls") == expected
+    assert commands[0][:3] == ["docker", "exec", "sls"]
 
 
 def test_mask_in_github_actions(

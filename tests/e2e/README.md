@@ -306,6 +306,10 @@ server can take several minutes:
 poetry run python -m tests.e2e.sls_container --url http://127.0.0.1:8080
 ```
 
+Add `--container <name>` (see `docker compose -f src/testkit/compose.yaml ps`) to
+stop waiting as soon as the container records a Windows bugcheck; in CI it
+defaults to `$SLS_CONTAINER` from `sls-start-server`.
+
 **3. Run the tests** with a live source:
 
 ```bash
