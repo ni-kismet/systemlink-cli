@@ -416,7 +416,7 @@ jobs:
       - name: Start SystemLink Server
         id: sls
         if: ${{ steps.migration-config.outputs.enabled == 'true' }}
-        uses: ni-kismet/sls-test/sls-start-server@6be49fefd28444307e7307dd4a13accd17ca8a06 # main
+        uses: ni-kismet/sls-test/sls-start-server@3a9bb6127e66ad3832f971a4f46f99518bdf7a6c # main
         with:
           image: ${{ env.SLS_IMAGE }}
 
@@ -501,7 +501,7 @@ jobs:
       - name: Collect SystemLink Server logs
         if: ${{ !cancelled() && steps.migration-config.outputs.enabled == 'true' }}
         continue-on-error: true
-        uses: ni-kismet/sls-test/sls-collect-logs@6be49fefd28444307e7307dd4a13accd17ca8a06 # main
+        uses: ni-kismet/sls-test/sls-collect-logs@3a9bb6127e66ad3832f971a4f46f99518bdf7a6c # main
         with:
           artifact: migration-sls-container-logs
           container: sls
